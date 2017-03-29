@@ -19,7 +19,6 @@
  */
 package org.sonar.server.issue.ws;
 
-import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -38,19 +37,19 @@ import org.sonar.server.issue.index.IssueIndex;
 import org.sonar.server.issue.index.IssueIndexDefinition;
 import org.sonar.server.issue.index.IssueIndexer;
 import org.sonar.server.issue.index.IssueIteratorFactory;
+import org.sonar.server.organization.TestDefaultOrganizationProvider;
 import org.sonar.server.permission.index.AuthorizationTypeSupport;
 import org.sonar.server.rule.index.RuleIndexDefinition;
 import org.sonar.server.rule.index.RuleIndexer;
-import org.sonar.server.rule.index.RuleIteratorFactory;
 import org.sonar.server.tester.UserSessionRule;
 import org.sonar.server.ws.WsActionTester;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sonar.api.web.UserRole.USER;
 import static org.sonar.db.component.ComponentTesting.newFileDto;
-import static org.sonar.db.rule.RuleTesting.newRuleDto;
+import static org.sonar.db.rule.RuleTesting.setSystemTags;
+import static org.sonar.db.rule.RuleTesting.setTags;
 import static org.sonar.test.JsonAssert.assertJson;
 
 public class TagsActionTest {
@@ -63,10 +62,10 @@ public class TagsActionTest {
   public EsTester es = new EsTester(new IssueIndexDefinition(new MapSettings()), new RuleIndexDefinition(new MapSettings()));
 
   private IssueIndexer issueIndexer = new IssueIndexer(es.client(), new IssueIteratorFactory(db.getDbClient()));
-  private RuleIndexer ruleIndexer = new RuleIndexer(es.client(), new RuleIteratorFactory(db.getDbClient()));
+  private RuleIndexer ruleIndexer = new RuleIndexer(es.client(), db.getDbClient());
   private IssueIndex issueIndex = new IssueIndex(es.client(), System2.INSTANCE, userSession, new AuthorizationTypeSupport(userSession));
 
-  private WsActionTester tester = new WsActionTester(new TagsAction(issueIndex));
+  private WsActionTester tester = new WsActionTester(new TagsAction(issueIndex, TestDefaultOrganizationProvider.from(db)));
   private OrganizationDto organization;
 
   @Before
@@ -86,10 +85,18 @@ public class TagsActionTest {
 
   @Test
   public void return_tags_from_rules() throws Exception {
-    RuleDto r = db.rules().insertRule(organization, rule -> rule.setSystemTags(ImmutableSet.of("tag1")), rule -> rule.setTags(ImmutableSet.of("tag2")));
-    RuleDto r2 = db.rules().insertRule(organization, rule -> rule.setSystemTags(ImmutableSet.of("tag3")), rule -> rule.setTags(ImmutableSet.of("tag4", "tag5")));
+    RuleDto r = db.rules().insertRule(organization,
+      setSystemTags("tag1"),
+      setTags("tag2"));
     db.commit();
-    ruleIndexer.index(organization, asList(r.getKey(), r2.getKey()));
+    ruleIndexer.indexRuleDefinitions(asList(r.getDefinition().getKey()));
+    ruleIndexer.indexRuleExtension(organization, r.getKey());
+    RuleDto r2 = db.rules().insertRule(organization,
+      setSystemTags("tag3"),
+      setTags("tag4", "tag5"));
+    db.commit();
+    ruleIndexer.indexRuleDefinitions(asList(r2.getDefinition().getKey()));
+    ruleIndexer.indexRuleExtension(organization, r2.getKey());
 
     String result = tester.newRequest().execute().getInput();
     assertJson(result).isSimilarTo("{\"tags\":[\"tag1\", \"tag2\", \"tag3\", \"tag4\", \"tag5\"]}");
@@ -100,8 +107,13 @@ public class TagsActionTest {
     insertIssueWithBrowsePermission(insertRuleWithoutTags(), "tag1", "tag2");
     insertIssueWithBrowsePermission(insertRuleWithoutTags(), "tag3", "tag4", "tag5");
     issueIndexer.indexOnStartup(null);
-    RuleDto r = db.rules().insertRule(db.getDefaultOrganization(), rule -> rule.setSystemTags(ImmutableSet.of("tag6")).setTags(ImmutableSet.of("tag7")));
-    ruleIndexer.index(organization, r.getKey());
+
+    RuleDto r = db.rules().insertRule(organization,
+      setSystemTags("tag6"),
+      setTags("tag7"));
+    db.commit();
+    ruleIndexer.indexRuleDefinitions(asList(r.getDefinition().getKey()));
+    ruleIndexer.indexRuleExtension(organization, r.getKey());
 
     String result = tester.newRequest().execute().getInput();
     assertJson(result).isSimilarTo("{\"tags\":[\"tag1\", \"tag2\", \"tag3\", \"tag4\", \"tag5\", \"tag6\", \"tag7\"]}");
@@ -137,8 +149,13 @@ public class TagsActionTest {
   public void test_example() throws Exception {
     insertIssueWithBrowsePermission(insertRuleWithoutTags(), "convention");
     issueIndexer.indexOnStartup(null);
-    RuleDto r = db.rules().insertRule(db.getDefaultOrganization(), rule -> rule.setSystemTags(ImmutableSet.of("cwe")).setTags(ImmutableSet.of("security")));
-    ruleIndexer.index(organization, r.getKey());
+
+    RuleDto r = db.rules().insertRule(organization,
+      setSystemTags("cwe"),
+      setTags("security"));
+    db.commit();
+    ruleIndexer.indexRuleDefinitions(asList(r.getDefinition().getKey()));
+    ruleIndexer.indexRuleExtension(organization, r.getKey());
 
     String result = tester.newRequest().execute().getInput();
     assertJson(result).isSimilarTo(tester.getDef().responseExampleAsString());
@@ -154,11 +171,13 @@ public class TagsActionTest {
     assertThat(action.params()).hasSize(2);
 
     Param query = action.param("q");
+    assertThat(query).isNotNull();
     assertThat(query.isRequired()).isFalse();
     assertThat(query.description()).isNotEmpty();
     assertThat(query.exampleValue()).isNotEmpty();
 
     Param pageSize = action.param("ps");
+    assertThat(pageSize).isNotNull();
     assertThat(pageSize.isRequired()).isFalse();
     assertThat(pageSize.defaultValue()).isEqualTo("10");
     assertThat(pageSize.description()).isNotEmpty();
@@ -166,8 +185,9 @@ public class TagsActionTest {
   }
 
   private RuleDto insertRuleWithoutTags() {
-    RuleDto ruleDto = newRuleDto(db.getDefaultOrganization()).setTags(emptySet()).setSystemTags(emptySet());
-    db.rules().insertRule(ruleDto);
+    RuleDto ruleDto = db.rules().insertRule(organization,
+      setSystemTags(),
+      setTags());
     return ruleDto;
   }
 

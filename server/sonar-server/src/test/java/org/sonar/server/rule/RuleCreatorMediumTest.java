@@ -50,6 +50,7 @@ import org.sonar.server.rule.index.RuleQuery;
 import org.sonar.server.tester.ServerTester;
 import org.sonar.server.tester.UserSessionRule;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.fail;
 
@@ -519,7 +520,7 @@ public class RuleCreatorMediumTest {
     RuleParamDto ruleParamDto = RuleParamDto.createFor(templateRule.getDefinition()).setName("regex").setType("STRING").setDescription("Reg ex").setDefaultValue(".*");
     dao.insertRuleParam(dbSession, templateRule.getDefinition(), ruleParamDto);
     dbSession.commit();
-    ruleIndexer.index(defaultOrganization, templateRule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(templateRule.getDefinition().getKey()));
     return templateRule;
   }
 
@@ -539,7 +540,7 @@ public class RuleCreatorMediumTest {
       .setName("myIntegers").setType("INTEGER,multiple=true,values=1;2;3").setDescription("My Integers").setDefaultValue("1");
     dao.insertRuleParam(dbSession, templateRule.getDefinition(), ruleParamDto);
     dbSession.commit();
-    ruleIndexer.index(defaultOrganization, templateRule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(templateRule.getDefinition().getKey()));
     return templateRule;
   }
 

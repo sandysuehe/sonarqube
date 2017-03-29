@@ -89,11 +89,13 @@ public class RuleIteratorForSingleChunkTest {
   public void iterator_over_one_rule() {
     dbTester.rules().insertRule(templateRule);
 
-    List<RuleDoc> results = getResults();
+    List<RuleDocWithSystemScope> results = getResults();
 
     assertThat(results).hasSize(1);
 
-    RuleDoc templateDoc = getRuleDoc(results, templateRule.getRuleKey());
+    RuleDocWithSystemScope ruleDocWithSystemScope = getRuleDoc(results, templateRule.getRuleKey());
+    RuleDoc templateDoc = ruleDocWithSystemScope.getRuleDoc();
+    RuleExtensionDoc templateExtensionDoc = ruleDocWithSystemScope.getRuleExtensionDoc();
     assertThat(templateDoc).isNotNull();
     assertThat(templateDoc.key()).isEqualTo(RuleKey.of("xoo", "S001"));
     assertThat(templateDoc.ruleKey()).isEqualTo("S001");
@@ -105,7 +107,7 @@ public class RuleIteratorForSingleChunkTest {
     assertThat(templateDoc.severity()).isEqualTo(Severity.BLOCKER);
     assertThat(templateDoc.status()).isEqualTo(RuleStatus.READY);
     assertThat(templateDoc.isTemplate()).isTrue();
-    assertThat(templateDoc.allTags()).containsOnly("performance", "cwe");
+    assertThat(templateExtensionDoc.getTags()).containsOnly("performance", "cwe");
     assertThat(templateDoc.createdAt()).isEqualTo(1500000000000L);
     assertThat(templateDoc.updatedAt()).isEqualTo(1600000000000L);
   }
@@ -116,11 +118,13 @@ public class RuleIteratorForSingleChunkTest {
     dbClient.ruleDao().insert(dbSession, customRule);
     dbSession.commit();
 
-    List<RuleDoc> results = getResults();
+    List<RuleDocWithSystemScope> results = getResults();
 
     assertThat(results).hasSize(2);
 
-    RuleDoc templateDoc = getRuleDoc(results, templateRule.getRuleKey());
+    RuleDocWithSystemScope templateDocWithSystemScope = getRuleDoc(results, templateRule.getRuleKey());
+    RuleDoc templateDoc = templateDocWithSystemScope.getRuleDoc();
+    RuleExtensionDoc templateExtensionDoc = templateDocWithSystemScope.getRuleExtensionDoc();
     assertThat(templateDoc.key()).isEqualTo(RuleKey.of("xoo", "S001"));
     assertThat(templateDoc.ruleKey()).isEqualTo("S001");
     assertThat(templateDoc.repository()).isEqualTo("xoo");
@@ -131,11 +135,13 @@ public class RuleIteratorForSingleChunkTest {
     assertThat(templateDoc.severity()).isEqualTo(Severity.BLOCKER);
     assertThat(templateDoc.status()).isEqualTo(RuleStatus.READY);
     assertThat(templateDoc.isTemplate()).isTrue();
-    assertThat(templateDoc.allTags()).containsOnly("performance", "cwe");
+    assertThat(templateExtensionDoc.getTags()).containsOnly("performance", "cwe");
     assertThat(templateDoc.createdAt()).isEqualTo(1500000000000L);
     assertThat(templateDoc.updatedAt()).isEqualTo(1600000000000L);
 
-    RuleDoc customDoc = getRuleDoc(results, customRule.getRuleKey());
+    RuleDocWithSystemScope customDocWithSystemScope = getRuleDoc(results, templateRule.getRuleKey());
+    RuleDoc customDoc = customDocWithSystemScope.getRuleDoc();
+    RuleExtensionDoc customExtensionDoc = customDocWithSystemScope.getRuleExtensionDoc();
     assertThat(customDoc.key()).isEqualTo(RuleKey.of("xoo", "S002"));
     assertThat(customDoc.ruleKey()).isEqualTo("S002");
     assertThat(customDoc.repository()).isEqualTo("xoo");
@@ -146,7 +152,7 @@ public class RuleIteratorForSingleChunkTest {
     assertThat(customDoc.severity()).isEqualTo(Severity.MAJOR);
     assertThat(customDoc.status()).isEqualTo(RuleStatus.BETA);
     assertThat(customDoc.isTemplate()).isFalse();
-    assertThat(customDoc.allTags()).isEmpty();
+    assertThat(customExtensionDoc.getTags()).isEmpty();
     assertThat(customDoc.createdAt()).isEqualTo(2000000000000L);
     assertThat(customDoc.updatedAt()).isEqualTo(2100000000000L);
   }
@@ -157,15 +163,19 @@ public class RuleIteratorForSingleChunkTest {
     dbClient.ruleDao().insert(dbSession, customRule.setTemplateId(templateRule.getId()));
     dbSession.commit();
 
-    List<RuleDoc> results = getResults();
+    List<RuleDocWithSystemScope> results = getResults();
 
     assertThat(results).hasSize(2);
 
-    RuleDoc templateDoc = getRuleDoc(results, templateRule.getRuleKey());
+    RuleDocWithSystemScope templateDocWithSystemScope = getRuleDoc(results, templateRule.getRuleKey());
+    RuleDoc templateDoc = templateDocWithSystemScope.getRuleDoc();
+    RuleExtensionDoc templateExtensionDoc = templateDocWithSystemScope.getRuleExtensionDoc();
     assertThat(templateDoc.isTemplate()).isTrue();
     assertThat(templateDoc.templateKey()).isNull();
 
-    RuleDoc customDoc = getRuleDoc(results, customRule.getRuleKey());
+    RuleDocWithSystemScope customDocWithSystemScope = getRuleDoc(results, templateRule.getRuleKey());
+    RuleDoc customDoc = customDocWithSystemScope.getRuleDoc();
+    RuleExtensionDoc customExtensionDoc = customDocWithSystemScope.getRuleExtensionDoc();
     assertThat(customDoc.isTemplate()).isFalse();
     assertThat(customDoc.templateKey()).isEqualTo(RuleKey.of("xoo", "S001"));
   }
@@ -175,19 +185,19 @@ public class RuleIteratorForSingleChunkTest {
     dbTester.rules().insertRule(templateRule.setStatus(RuleStatus.REMOVED));
     dbSession.commit();
 
-    List<RuleDoc> results = getResults();
+    List<RuleDocWithSystemScope> results = getResults();
 
     assertThat(results).hasSize(1);
   }
 
-  private List<RuleDoc> getResults() {
-    return Lists.newArrayList(new RuleIteratorForSingleChunk(dbTester.getDbClient(), dbTester.getDefaultOrganization(), null));
+  private List<RuleDocWithSystemScope> getResults() {
+    return Lists.newArrayList(new RuleIteratorForSingleChunk(dbTester.getDbClient(), null));
   }
 
-  private RuleDoc getRuleDoc(List<RuleDoc> results, String ruleKey) {
-    RuleDoc rule;
+  private RuleDocWithSystemScope getRuleDoc(List<RuleDocWithSystemScope> results, String ruleKey) {
+    RuleDocWithSystemScope rule;
     rule = results.stream()
-      .filter(r -> ruleKey.equals(r.key().rule()))
+      .filter(r -> ruleKey.equals(r.getRuleDoc().key().rule()))
       .findAny()
       .orElseThrow(() -> new NotFoundException("Rule not found in results"));
     return rule;

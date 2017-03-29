@@ -56,6 +56,7 @@ import org.sonar.server.tester.ServerTester;
 import org.sonar.server.tester.UserSessionRule;
 import org.sonar.server.ws.WsTester;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.sonarqube.ws.client.rule.RulesWsParameters.PARAM_ACTIVATION;
 import static org.sonarqube.ws.client.rule.RulesWsParameters.PARAM_AVAILABLE_SINCE;
@@ -640,6 +641,6 @@ public class SearchActionMediumTest {
   private void insertRule(RuleDefinitionDto definition) {
     ruleDao.insert(dbSession, definition);
     dbSession.commit();
-    ruleIndexer.index(defaultOrganizationDto, definition.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(definition.getKey()));
   }
 }

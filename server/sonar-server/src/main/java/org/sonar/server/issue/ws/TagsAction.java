@@ -29,6 +29,7 @@ import org.sonar.api.server.ws.WebService.NewAction;
 import org.sonar.api.server.ws.WebService.Param;
 import org.sonar.api.utils.text.JsonWriter;
 import org.sonar.server.issue.index.IssueIndex;
+import org.sonar.server.organization.DefaultOrganizationProvider;
 
 import static org.sonar.api.server.ws.WebService.Param.PAGE_SIZE;
 
@@ -39,9 +40,11 @@ import static org.sonar.api.server.ws.WebService.Param.PAGE_SIZE;
 public class TagsAction implements IssuesWsAction {
 
   private final IssueIndex issueIndex;
+  private final DefaultOrganizationProvider defaultOrganizationProvider;
 
-  public TagsAction(IssueIndex issueIndex) {
+  public TagsAction(IssueIndex issueIndex, DefaultOrganizationProvider defaultOrganizationProvider) {
     this.issueIndex = issueIndex;
+    this.defaultOrganizationProvider = defaultOrganizationProvider;
   }
 
   @Override
@@ -69,7 +72,7 @@ public class TagsAction implements IssuesWsAction {
   }
 
   private List<String> listTags(@Nullable String textQuery, int pageSize) {
-    return issueIndex.listTags(textQuery, pageSize);
+    return issueIndex.listTags(defaultOrganizationProvider.get().getUuid(), textQuery, pageSize);
   }
 
   private static void writeTags(Response response, List<String> tags) {

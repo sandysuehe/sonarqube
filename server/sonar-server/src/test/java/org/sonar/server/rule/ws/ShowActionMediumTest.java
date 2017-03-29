@@ -52,6 +52,7 @@ import org.sonar.server.tester.UserSessionRule;
 import org.sonar.server.ws.WsTester;
 
 import static com.google.common.collect.Sets.newHashSet;
+import static java.util.Arrays.asList;
 import static org.sonar.api.rule.Severity.MINOR;
 import static org.sonar.db.permission.OrganizationPermission.ADMINISTER_QUALITY_PROFILES;
 
@@ -272,7 +273,7 @@ public class ShowActionMediumTest {
     RuleDefinitionDto definition = ruleDto.getDefinition();
     ruleDao.insert(session, definition);
     session.commit();
-    ruleIndexer.index(defaultOrganization, definition.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(definition.getKey()));
     RuleParamDto regexParam = RuleParamDto.createFor(definition).setName("regex").setType("STRING").setDescription("Reg *exp*").setDefaultValue(".*");
     ruleDao.insertRuleParam(session, definition, regexParam);
 

@@ -111,7 +111,8 @@ public class RuleDbTester {
     });
   }
 
-  public RuleDto insertRule(OrganizationDto organization, Consumer<RuleDto>... populaters) {
+  @SafeVarargs
+  public final RuleDto insertRule(OrganizationDto organization, Consumer<RuleDto>... populaters) {
     RuleDto ruleDto = newRuleDto(organization);
     Arrays.asList(populaters).forEach(populater -> populater.accept(ruleDto));
     return insertRule(ruleDto);

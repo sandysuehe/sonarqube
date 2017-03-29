@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.commons.lang.StringUtils;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -54,25 +56,31 @@ import org.sonar.api.rule.RuleKey;
 import org.sonar.api.rule.RuleStatus;
 import org.sonar.api.rule.Severity;
 import org.sonar.api.rules.RuleType;
+import org.sonar.db.organization.OrganizationDto;
 import org.sonar.server.es.EsClient;
+import org.sonar.server.es.EsUtils;
 import org.sonar.server.es.SearchIdResult;
 import org.sonar.server.es.SearchOptions;
 import org.sonar.server.es.StickyFacetBuilder;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.sonar.server.es.DefaultIndexSettingsElement.SEARCH_WORDS_ANALYZER;
 import static org.sonar.server.es.DefaultIndexSettingsElement.SORTABLE_ANALYZER;
 import static org.sonar.server.es.EsUtils.SCROLL_TIME_IN_MINUTES;
 import static org.sonar.server.es.EsUtils.escapeSpecialRegexChars;
 import static org.sonar.server.es.EsUtils.scrollIds;
 import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_INHERITANCE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_ORGANIZATION_UUID;
 import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_PROFILE_KEY;
 import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_ACTIVE_RULE_SEVERITY;
-import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_ALL_TAGS;
 import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_CREATED_AT;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_EXTENSION_SCOPE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_EXTENSION_TAGS;
 import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_HTML_DESCRIPTION;
 import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_INTERNAL_KEY;
 import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_IS_TEMPLATE;
@@ -88,6 +96,7 @@ import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_TYPE;
 import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_UPDATED_AT;
 import static org.sonar.server.rule.index.RuleIndexDefinition.INDEX_TYPE_ACTIVE_RULE;
 import static org.sonar.server.rule.index.RuleIndexDefinition.INDEX_TYPE_RULE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.INDEX_TYPE_RULE_EXTENSION;
 
 /**
  * The unique entry-point to interact with Elasticsearch index "rules".
@@ -108,6 +117,8 @@ public class RuleIndex {
     Collections2.filter(
       Collections2.transform(Arrays.asList(RuleStatus.values()), RuleStatus::toString),
       input -> !RuleStatus.REMOVED.toString().equals(input)));
+  private static final String AGGREGATION_ALL_TAGS = "allTags";
+  public static final String AGGREGATION_NAME_FOR_TAGS = "termsAggregation";
   private final EsClient client;
 
   public RuleIndex(EsClient client) {
@@ -186,9 +197,6 @@ public class RuleIndex {
     qb.should(matchQuery(SORTABLE_ANALYZER.subField(FIELD_RULE_KEY), queryString).operator(MatchQueryBuilder.Operator.AND).boost(30f));
     qb.should(matchQuery(SORTABLE_ANALYZER.subField(FIELD_RULE_RULE_KEY), queryString).operator(MatchQueryBuilder.Operator.AND).boost(15f));
     qb.should(termQuery(FIELD_RULE_LANGUAGE, queryString, 3f));
-    qb.should(termQuery(FIELD_RULE_ALL_TAGS, queryString, 10f));
-    qb.should(termAnyQuery(FIELD_RULE_ALL_TAGS, queryString, 1f));
-
     return qb;
   }
 
@@ -248,8 +256,15 @@ public class RuleIndex {
     }
 
     if (isNotEmpty(query.getTags())) {
-      filters.put(FIELD_RULE_ALL_TAGS,
-        QueryBuilders.termsQuery(FIELD_RULE_ALL_TAGS, query.getTags()));
+      BoolQueryBuilder q = boolQuery();
+      String organizationUuid = requireNonNull(query.getOrganizationUuid());
+      query.getTags().stream()
+        .map(tag -> QueryBuilders.termQuery(FIELD_RULE_EXTENSION_TAGS, tag))
+        .map(childQuery -> boolQuery()
+          .filter(QueryBuilders.hasChildQuery(INDEX_TYPE_RULE_EXTENSION.getType(), childQuery))
+          .filter(termsQuery(FIELD_RULE_EXTENSION_SCOPE, RuleExtensionScope.system(), RuleExtensionScope.organization(organizationUuid))))
+        .forEach(q::filter);
+      filters.put(FIELD_RULE_EXTENSION_TAGS, q);
     }
 
     if (isNotEmpty(query.getTypes())) {
@@ -288,6 +303,7 @@ public class RuleIndex {
     addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_PROFILE_KEY, query.getQProfileKey());
     addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_INHERITANCE, query.getInheritance());
     addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_SEVERITY, query.getActiveSeverities());
+    addTermFilter(childrenFilter, FIELD_ACTIVE_RULE_ORGANIZATION_UUID, query.getOrganizationUuid());
 
     // ChildQuery
     QueryBuilder childQuery;
@@ -355,12 +371,16 @@ public class RuleIndex {
         stickyFacetBuilder.buildStickyFacet(FIELD_RULE_LANGUAGE, FACET_LANGUAGES,
           (languages == null) ? (new String[0]) : languages.toArray()));
     }
-    if (options.getFacets().contains(FACET_TAGS) || options.getFacets().contains(FACET_OLD_DEFAULT)) {
-      Collection<String> tags = query.getTags();
-      aggregations.put(FACET_TAGS,
-        stickyFacetBuilder.buildStickyFacet(FIELD_RULE_ALL_TAGS, FACET_TAGS,
-          (tags == null) ? (new String[0]) : tags.toArray()));
-    }
+    /*
+     * FIXME allow tag search in tags facet
+     * 
+     * if (options.getFacets().contains(FACET_TAGS) || options.getFacets().contains(FACET_OLD_DEFAULT)) {
+     * Collection<String> tags = query.getTags();
+     * aggregations.put(FACET_TAGS,
+     * stickyFacetBuilder.buildStickyFacet(AGGREGATION_ALL_TAGS, FACET_TAGS,
+     * (tags == null) ? (new String[0]) : tags.toArray()));
+     * }
+     */
     if (options.getFacets().contains(FACET_TYPES)) {
       Collection<RuleType> types = query.getTypes();
       aggregations.put(FACET_TYPES,
@@ -485,7 +505,10 @@ public class RuleIndex {
       .addAggregation(termsAggregation);
 
     SearchResponse esResponse = request.get();
+    return extractAggregationTerms(aggregationKey, esResponse);
+  }
 
+  private Set<String> extractAggregationTerms(String aggregationKey, SearchResponse esResponse) {
     Set<String> terms = new HashSet<>();
     Terms aggregation = esResponse.getAggregations().get(aggregationKey);
     if (aggregation != null) {
@@ -494,8 +517,32 @@ public class RuleIndex {
     return terms;
   }
 
+  public Set<String> tags(OrganizationDto organization, String query, int size) {
+    TermsQueryBuilder scopeFilter = QueryBuilders.termsQuery(
+      FIELD_RULE_EXTENSION_SCOPE,
+      RuleExtensionScope.system().getScope(),
+      RuleExtensionScope.organization(organization).getScope());
+
+    TermsBuilder termsAggregation = AggregationBuilders.terms(AGGREGATION_NAME_FOR_TAGS)
+      .field(FIELD_RULE_EXTENSION_TAGS)
+      .size(size)
+      .minDocCount(1);
+    Optional.ofNullable(query)
+      .map(EsUtils::escapeSpecialRegexChars)
+      .map(queryString -> ".*" + queryString + ".*")
+      .ifPresent(termsAggregation::include);
+
+    SearchRequestBuilder request = client
+      .prepareSearch(INDEX_TYPE_RULE_EXTENSION)
+      .setQuery(boolQuery().filter(scopeFilter))
+      .setSize(0)
+      .addAggregation(termsAggregation);
+
+    SearchResponse esResponse = request.get();
+    return extractAggregationTerms(AGGREGATION_NAME_FOR_TAGS, esResponse);
+  }
+
   private static boolean isNotEmpty(@Nullable Collection list) {
     return list != null && !list.isEmpty();
   }
-
 }

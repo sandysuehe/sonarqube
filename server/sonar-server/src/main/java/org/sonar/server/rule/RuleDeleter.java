@@ -29,6 +29,8 @@ import org.sonar.db.rule.RuleDefinitionDto;
 import org.sonar.server.qualityprofile.RuleActivator;
 import org.sonar.server.rule.index.RuleIndexer;
 
+import static java.util.Arrays.asList;
+
 @ServerSide
 public class RuleDeleter {
 
@@ -61,7 +63,7 @@ public class RuleDeleter {
       dbClient.ruleDao().update(dbSession, rule);
 
       dbSession.commit();
-      ruleIndexer.delete(ruleKey);
+      ruleIndexer.indexRuleDefinitions(asList(ruleKey));
     }
   }
 }

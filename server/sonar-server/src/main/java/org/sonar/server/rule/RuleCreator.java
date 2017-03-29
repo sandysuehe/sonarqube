@@ -88,7 +88,11 @@ public class RuleCreator {
       .orElseGet(() -> createCustomRule(customRuleKey, newRule, templateRule, dbSession));
 
     dbSession.commit();
-    ruleIndexer.index(defaultOrganization, customRuleKey);
+    /*
+     * FIXME make api/rules/create organization specific
+     * 
+     * ruleIndexer.index(RuleExtensionScope.organization(defaultOrganization), customRuleKey);
+     */
     return customRuleKey;
   }
 

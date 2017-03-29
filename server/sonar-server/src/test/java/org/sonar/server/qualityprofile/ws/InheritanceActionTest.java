@@ -53,7 +53,6 @@ import org.sonar.server.qualityprofile.index.ActiveRuleIndexer;
 import org.sonar.server.rule.index.RuleIndex;
 import org.sonar.server.rule.index.RuleIndexDefinition;
 import org.sonar.server.rule.index.RuleIndexer;
-import org.sonar.server.rule.index.RuleIteratorFactory;
 import org.sonar.server.tester.UserSessionRule;
 import org.sonar.server.util.TypeValidations;
 import org.sonar.server.ws.WsActionTester;
@@ -85,7 +84,7 @@ public class InheritanceActionTest {
     dbClient = dbTester.getDbClient();
     dbSession = dbTester.getSession();
     esClient = esTester.client();
-    ruleIndexer = new RuleIndexer(esClient, new RuleIteratorFactory(dbClient));
+    ruleIndexer = new RuleIndexer(esClient, dbClient);
     activeRuleIndexer = new ActiveRuleIndexer(System2.INSTANCE, dbClient, esClient);
     TestDefaultOrganizationProvider defaultOrganizationProvider = TestDefaultOrganizationProvider.from(dbTester);
     underTest = new InheritanceAction(
@@ -119,7 +118,6 @@ public class InheritanceActionTest {
     createActiveRule(rule2, groupWide);
 
     dbSession.commit();
-    ruleIndexer.index(organization, asList(rule1.getKey(), rule2.getKey(), rule3.getKey()));
     activeRuleIndexer.index();
 
     QualityProfileDto companyWide = createProfile("xoo", "My Company Profile", "xoo-my-company-profile-12345");
@@ -188,6 +186,8 @@ public class InheritanceActionTest {
       .setUpdatedAt(now)
       .setCreatedAt(now);
     dbClient.ruleDao().insert(dbSession, rule.getDefinition());
+    dbSession.commit();
+    ruleIndexer.indexRuleDefinitions(asList(rule.getDefinition().getKey()));
     return rule.getDefinition();
   }
 

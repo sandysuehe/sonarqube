@@ -50,6 +50,7 @@ public class RuleQuery {
   private boolean ascendingSort = true;
   private String internalKey;
   private String ruleKey;
+  private String organizationUuid;
 
   /**
    * TODO should not be public
@@ -265,5 +266,14 @@ public class RuleQuery {
 
   public String getRuleKey() {
     return ruleKey;
+  }
+
+  @CheckForNull
+  public String getOrganizationUuid() {
+    return organizationUuid;
+  }
+
+  public void setOrganizationUuid(@Nullable String organizationUuid) {
+    this.organizationUuid = organizationUuid;
   }
 }

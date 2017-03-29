@@ -55,7 +55,6 @@ import org.sonar.server.qualityprofile.QProfileTesting;
 import org.sonar.server.qualityprofile.RuleActivation;
 import org.sonar.server.qualityprofile.RuleActivator;
 import org.sonar.server.rule.index.RuleIndex;
-import org.sonar.server.rule.index.RuleIndexDefinition;
 import org.sonar.server.rule.index.RuleQuery;
 import org.sonar.server.tester.ServerTester;
 import org.sonar.server.tester.UserSessionRule;
@@ -202,13 +201,12 @@ public class RuleUpdaterMediumTest {
     RuleUpdate update = RuleUpdate.createForPluginRule(RULE_KEY).setTags(Sets.newHashSet("bug", "java8"));
     underTest.update(update, userSessionRule);
 
-    dbSession.clearCache();
     RuleDto rule = ruleDao.selectOrFailByKey(dbSession, defaultOrganization.getUuid(), RULE_KEY);
     assertThat(rule.getTags()).containsOnly("bug");
     assertThat(rule.getSystemTags()).containsOnly("java8", "javadoc");
 
     // verify that tags are indexed in index
-    Set<String> tags = tester.get(RuleIndex.class).terms(RuleIndexDefinition.FIELD_RULE_ALL_TAGS);
+    Set<String> tags = ruleIndex.tags(defaultOrganization, null, 10);
     assertThat(tags).containsOnly("bug", "java8", "javadoc");
   }
 
@@ -230,7 +228,7 @@ public class RuleUpdaterMediumTest {
     assertThat(rule.getSystemTags()).containsOnly("java8", "javadoc");
 
     // verify that tags are indexed in index
-    Set<String> tags = tester.get(RuleIndex.class).terms(RuleIndexDefinition.FIELD_RULE_ALL_TAGS);
+    Set<String> tags = ruleIndex.tags(defaultOrganization, null, 10);
     assertThat(tags).containsOnly("java8", "javadoc");
   }
 

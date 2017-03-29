@@ -21,6 +21,7 @@ package org.sonar.db.rule;
 
 import com.google.common.collect.ImmutableSet;
 import java.util.Date;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.sonar.api.rule.RuleKey;
 import org.sonar.api.rule.RuleStatus;
@@ -31,6 +32,7 @@ import org.sonar.db.organization.OrganizationDto;
 import org.sonar.db.rule.RuleDto.Format;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.ImmutableSet.copyOf;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang.RandomStringUtils.randomAlphabetic;
@@ -239,4 +241,13 @@ public class RuleTesting {
   public static RuleKey randomRuleKey() {
     return RuleKey.of(randomAlphanumeric(5), randomAlphanumeric(5));
   }
+
+  public static Consumer<RuleDto> setTags(String... tags) {
+    return rule -> rule.setTags(copyOf(tags));
+  }
+
+  public static Consumer<RuleDto> setSystemTags(String... tags) {
+    return rule -> rule.setSystemTags(copyOf(tags));
+  }
+
 }

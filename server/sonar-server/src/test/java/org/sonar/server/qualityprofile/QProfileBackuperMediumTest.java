@@ -94,16 +94,19 @@ public class QProfileBackuperMediumTest {
 
     // create pre-defined rules
     RuleDto xooRule1 = newXooX1().setSeverity("MINOR").setLanguage("xoo");
-    RuleDto xooRule2 = newXooX2().setSeverity("MAJOR").setLanguage("xoo");
     db.ruleDao().insert(dbSession, xooRule1.getDefinition());
-    db.ruleDao().insert(dbSession, xooRule2.getDefinition());
     db.ruleDao().insertRuleParam(dbSession, xooRule1.getDefinition(), RuleParamDto.createFor(xooRule1.getDefinition())
       .setName("max").setDefaultValue("10").setType(RuleParamType.INTEGER.type()));
     dbSession.commit();
-    dbSession.clearCache();
+    ruleIndexer.indexRuleDefinitions(asList(xooRule1.getDefinition().getKey()));
+
+    RuleDto xooRule2 = newXooX2().setSeverity("MAJOR").setLanguage("xoo");
+    db.ruleDao().insert(dbSession, xooRule2.getDefinition());
+    dbSession.commit();
+    ruleIndexer.indexRuleDefinitions(asList(xooRule2.getDefinition().getKey()));
+
     this.organization = OrganizationTesting.newOrganizationDto();
     db.organizationDao().insert(dbSession, organization);
-    ruleIndexer.index(organization, asList(xooRule1.getKey(), xooRule2.getKey()));
   }
 
   @After
@@ -117,8 +120,7 @@ public class QProfileBackuperMediumTest {
     RuleDto blahRule = newDto(blahRuleKey).setSeverity("INFO").setLanguage("xoo");
     db.ruleDao().insert(dbSession, blahRule.getDefinition());
     dbSession.commit();
-    dbSession.clearCache();
-    ruleIndexer.index(organization, blahRuleKey);
+    ruleIndexer.indexRuleDefinitions(asList(blahRule.getDefinition().getKey()));
 
     // create profile P1 with rules x2 and x1 activated
     QualityProfileDto profile = newXooP1(organization);

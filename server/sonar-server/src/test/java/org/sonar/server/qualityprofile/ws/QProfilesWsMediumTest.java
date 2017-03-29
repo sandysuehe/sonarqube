@@ -53,6 +53,7 @@ import org.sonar.server.tester.ServerTester;
 import org.sonar.server.tester.UserSessionRule;
 import org.sonar.server.ws.WsTester;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.fail;
 import static org.sonarqube.ws.client.qualityprofile.QualityProfileWsParameters.ACTION_ACTIVATE_RULE;
@@ -103,7 +104,7 @@ public class QProfilesWsMediumTest {
     RuleDefinitionDto rule = createRule(profile.getLanguage(), "toto");
     createActiveRule(rule, profile);
     session.commit();
-    ruleIndexer.index(organization, rule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(rule.getKey()));
     activeRuIndexer.index();
 
     // 0. Assert No Active Rule for profile
@@ -203,7 +204,7 @@ public class QProfilesWsMediumTest {
     QualityProfileDto profile = createProfile("java");
     RuleDefinitionDto rule = createRule(profile.getLanguage(), "toto");
     session.commit();
-    ruleIndexer.index(organization, rule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(rule.getKey()));
 
     // 0. Assert No Active Rule for profile
     assertThat(db.activeRuleDao().selectByProfileKey(session, profile.getKey())).isEmpty();
@@ -224,7 +225,7 @@ public class QProfilesWsMediumTest {
     QualityProfileDto profile = createProfile("java");
     RuleDefinitionDto rule = createRule("php", "toto");
     session.commit();
-    ruleIndexer.index(organization, rule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(rule.getKey()));
 
     // 0. Assert No Active Rule for profile
     assertThat(db.activeRuleDao().selectByProfileKey(session, profile.getKey())).isEmpty();
@@ -247,7 +248,7 @@ public class QProfilesWsMediumTest {
     QualityProfileDto profile = createProfile("java");
     RuleDefinitionDto rule = createRule(profile.getLanguage(), "toto");
     session.commit();
-    ruleIndexer.index(organization, rule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(rule.getKey()));
 
     // 0. Assert No Active Rule for profile
     assertThat(db.activeRuleDao().selectByProfileKey(session, profile.getKey())).isEmpty();
@@ -443,10 +444,11 @@ public class QProfilesWsMediumTest {
       .setLanguage(lang)
       .setSeverity(Severity.BLOCKER)
       .setStatus(RuleStatus.READY);
-    db.ruleDao().insert(session, rule.getDefinition());
+    RuleDefinitionDto ruleDefinition = rule.getDefinition();
+    db.ruleDao().insert(session, ruleDefinition);
     session.commit();
-    ruleIndexer.index(organization, rule.getKey());
-    return rule.getDefinition();
+    ruleIndexer.indexRuleDefinitions(asList(ruleDefinition.getKey()));
+    return ruleDefinition;
   }
 
   private ActiveRuleDto createActiveRule(RuleDefinitionDto rule, QualityProfileDto profile) {

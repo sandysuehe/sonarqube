@@ -75,6 +75,7 @@ import org.sonar.server.es.Sorting;
 import org.sonar.server.es.StickyFacetBuilder;
 import org.sonar.server.issue.IssueQuery;
 import org.sonar.server.permission.index.AuthorizationTypeSupport;
+import org.sonar.server.rule.index.RuleExtensionScope;
 import org.sonar.server.rule.index.RuleIndexDefinition;
 import org.sonar.server.user.UserSession;
 import org.sonar.server.view.index.ViewIndexDefinition;
@@ -85,7 +86,11 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.sonar.server.es.EsUtils.escapeSpecialRegexChars;
+import static org.sonar.server.issue.index.IssueIndexDefinition.INDEX_TYPE_ISSUE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.FIELD_RULE_EXTENSION_SCOPE;
+import static org.sonar.server.rule.index.RuleIndexDefinition.INDEX_TYPE_RULE_EXTENSION;
 import static org.sonarqube.ws.client.issue.IssuesWsParameters.DEPRECATED_FACET_MODE_DEBT;
 import static org.sonarqube.ws.client.issue.IssuesWsParameters.DEPRECATED_PARAM_ACTION_PLANS;
 import static org.sonarqube.ws.client.issue.IssuesWsParameters.FACET_ASSIGNED_TO_ME;
@@ -169,6 +174,7 @@ public class IssueIndex {
     this.system = system;
     this.userSession = userSession;
     this.authorizationTypeSupport = authorizationTypeSupport;
+
     this.sorting = new Sorting();
     this.sorting.add(IssueQuery.SORT_BY_ASSIGNEE, IssueIndexDefinition.FIELD_ISSUE_ASSIGNEE);
     this.sorting.add(IssueQuery.SORT_BY_STATUS, IssueIndexDefinition.FIELD_ISSUE_STATUS);
@@ -192,7 +198,7 @@ public class IssueIndex {
 
   public SearchResult<IssueDoc> search(IssueQuery query, SearchOptions options) {
     SearchRequestBuilder requestBuilder = client
-      .prepareSearch(IssueIndexDefinition.INDEX_TYPE_ISSUE);
+      .prepareSearch(INDEX_TYPE_ISSUE);
 
     configureSorting(query, requestBuilder);
     configurePagination(options, requestBuilder);
@@ -478,7 +484,7 @@ public class IssueIndex {
   private Optional<Long> getMinCreatedAt(Map<String, QueryBuilder> filters, QueryBuilder esQuery) {
     String facetNameAndField = IssueIndexDefinition.FIELD_ISSUE_FUNC_CREATED_AT;
     SearchRequestBuilder esRequest = client
-      .prepareSearch(IssueIndexDefinition.INDEX_TYPE_ISSUE)
+      .prepareSearch(INDEX_TYPE_ISSUE)
       .setSize(0);
     BoolQueryBuilder esFilter = boolQuery();
     filters.values().stream().filter(Objects::nonNull).forEach(esFilter::must);
@@ -592,12 +598,17 @@ public class IssueIndex {
     return value == null ? null : termQuery(field, value);
   }
 
-  public List<String> listTags(@Nullable String textQuery, int maxNumberOfTags) {
+  public List<String> listTags(String organizationUuid, @Nullable String textQuery, int maxNumberOfTags) {
     SearchRequestBuilder requestBuilder = client
-      .prepareSearch(IssueIndexDefinition.INDEX_TYPE_ISSUE, RuleIndexDefinition.INDEX_TYPE_RULE);
-
-    requestBuilder.setQuery(boolQuery().must(matchAllQuery()).filter(createBoolFilter(
-      IssueQuery.builder().checkAuthorization(false).build())));
+      .prepareSearch(INDEX_TYPE_ISSUE, RuleIndexDefinition.INDEX_TYPE_RULE_EXTENSION)
+      .setQuery(boolQuery()
+        .filter(boolQuery()
+          .should(boolQuery()
+            .filter(typeQuery(INDEX_TYPE_ISSUE.getType())))
+          .should(boolQuery()
+            .filter(typeQuery(INDEX_TYPE_RULE_EXTENSION.getType()))
+            .filter(termsQuery(FIELD_RULE_EXTENSION_SCOPE, RuleExtensionScope.system().getScope(), RuleExtensionScope.organization(organizationUuid).getScope())))))
+      .setSize(0);
 
     GlobalBuilder topAggreg = AggregationBuilders.global("tags");
     String tagsOnIssuesSubAggregation = "tags__issues";
@@ -609,7 +620,7 @@ public class IssueIndex {
       .order(Terms.Order.term(true))
       .minDocCount(1L);
     TermsBuilder ruleTags = AggregationBuilders.terms(tagsOnRulesSubAggregation)
-      .field(RuleIndexDefinition.FIELD_RULE_ALL_TAGS)
+      .field(RuleIndexDefinition.FIELD_RULE_EXTENSION_TAGS)
       .size(maxNumberOfTags)
       .order(Terms.Order.term(true))
       .minDocCount(1L);
@@ -618,8 +629,13 @@ public class IssueIndex {
       issueTags.include(format(SUBSTRING_MATCH_REGEXP, escapedTextQuery));
       ruleTags.include(format(SUBSTRING_MATCH_REGEXP, escapedTextQuery));
     }
+    requestBuilder.addAggregation(topAggreg
+      .subAggregation(issueTags)
+      .subAggregation(ruleTags));
 
-    SearchResponse searchResponse = requestBuilder.addAggregation(topAggreg.subAggregation(issueTags).subAggregation(ruleTags)).get();
+    SearchResponse searchResponse = requestBuilder
+      .get();
+
     Global allTags = searchResponse.getAggregations().get("tags");
     SortedSet<String> result = Sets.newTreeSet();
     Terms issuesResult = allTags.getAggregations().get(tagsOnIssuesSubAggregation);
@@ -642,7 +658,7 @@ public class IssueIndex {
 
   private Terms listTermsMatching(String fieldName, IssueQuery query, @Nullable String textQuery, Terms.Order termsOrder, int maxNumberOfTags) {
     SearchRequestBuilder requestBuilder = client
-      .prepareSearch(IssueIndexDefinition.INDEX_TYPE_ISSUE)
+      .prepareSearch(INDEX_TYPE_ISSUE)
       // Avoids returning search hits
       .setSize(0);
 
@@ -692,7 +708,7 @@ public class IssueIndex {
     }
 
     SearchRequestBuilder requestBuilder = client
-      .prepareSearch(IssueIndexDefinition.INDEX_TYPE_ISSUE)
+      .prepareSearch(INDEX_TYPE_ISSUE)
       .setSearchType(SearchType.SCAN)
       .setScroll(TimeValue.timeValueMinutes(EsUtils.SCROLL_TIME_IN_MINUTES))
       .setSize(10_000)

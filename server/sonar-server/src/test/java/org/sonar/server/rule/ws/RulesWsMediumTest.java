@@ -21,14 +21,12 @@ package org.sonar.server.rule.ws;
 
 import com.google.common.collect.ImmutableSet;
 import java.util.Collections;
-import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.sonar.api.server.ws.WebService;
-import org.sonar.core.util.stream.Collectors;
 import org.sonar.db.DbClient;
 import org.sonar.db.DbSession;
 import org.sonar.db.organization.OrganizationDto;
@@ -48,6 +46,7 @@ import org.sonar.server.tester.ServerTester;
 import org.sonar.server.tester.UserSessionRule;
 import org.sonar.server.ws.WsTester;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class RulesWsMediumTest {
@@ -120,7 +119,7 @@ public class RulesWsMediumTest {
     tester.get(ActiveRuleDao.class).insert(session, activeRuleDto);
 
     session.commit();
-    ruleIndexer.index(defaultOrganization, rule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(rule.getDefinition().getKey()));
     activeRuleIndexer.index();
 
     // 1. With Activation
@@ -147,15 +146,16 @@ public class RulesWsMediumTest {
       .setSystemTags(Collections.<String>emptySet());
     ruleDao.insert(session, rule.getDefinition());
     ruleDao.insertOrUpdate(session, rule.getMetadata().setRuleId(rule.getId()));
+    session.commit();
+    ruleIndexer.indexRuleDefinitions(asList(rule.getDefinition().getKey()));
 
     RuleDto rule2 = RuleTesting.newXooX2(defaultOrganization)
       .setTags(ImmutableSet.of("hello", "java"))
       .setSystemTags(ImmutableSet.of("sys1"));
     ruleDao.insert(session, rule2.getDefinition());
     ruleDao.insertOrUpdate(session, rule2.getMetadata().setRuleId(rule2.getId()));
-
     session.commit();
-    ruleIndexer.index(defaultOrganization, Stream.of(rule, rule2).map(RuleDto::getKey).collect(Collectors.toList()));
+    ruleIndexer.indexRuleDefinitions(asList(rule.getDefinition().getKey()));
 
     tester.wsTester().newGetRequest(API_ENDPOINT, API_TAGS_METHOD).execute().assertJson(this.getClass(), "get_tags.json");
     tester.wsTester().newGetRequest(API_ENDPOINT, API_TAGS_METHOD)

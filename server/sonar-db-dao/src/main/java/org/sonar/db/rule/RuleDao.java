@@ -29,6 +29,7 @@ import org.sonar.api.rules.RuleQuery;
 import org.sonar.db.Dao;
 import org.sonar.db.DbSession;
 import org.sonar.db.RowNotFoundException;
+import org.sonar.db.organization.OrganizationDto;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.sonar.db.DatabaseUtils.executeLargeInputs;
@@ -43,6 +44,10 @@ public class RuleDao implements Dao {
 
   public Optional<RuleDefinitionDto> selectDefinitionByKey(DbSession session, RuleKey key) {
     return Optional.fromNullable(mapper(session).selectDefinitionByKey(key));
+  }
+
+  public java.util.Optional<RuleMetadataDto> selectMetadataByKey(DbSession session, RuleKey key, OrganizationDto organization) {
+    return java.util.Optional.ofNullable(mapper(session).selectMetadataByKey(key, organization.getUuid()));
   }
 
   public RuleDto selectOrFailByKey(DbSession session, String organizationUuid, RuleKey key) {
@@ -171,5 +176,4 @@ public class RuleDao implements Dao {
   public void deleteRuleParam(DbSession session, int ruleParameterId) {
     mapper(session).deleteParameter(ruleParameterId);
   }
-
 }

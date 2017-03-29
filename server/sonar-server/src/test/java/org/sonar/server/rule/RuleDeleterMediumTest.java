@@ -45,6 +45,7 @@ import org.sonar.server.rule.index.RuleQuery;
 import org.sonar.server.tester.ServerTester;
 import org.sonar.server.tester.UserSessionRule;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // TODO replace ServerTester by EsTester / DbTester
@@ -88,7 +89,7 @@ public class RuleDeleterMediumTest {
       .setUpdatedAt(PAST);
     dao.insert(dbSession, templateRule.getDefinition());
     dbSession.commit();
-    ruleIndexer.index(organization, templateRule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(templateRule.getDefinition().getKey()));
 
     // Verify in index
     assertThat(index.searchAll(new RuleQuery())).containsOnly(templateRule.getKey());
@@ -100,7 +101,7 @@ public class RuleDeleterMediumTest {
       .setUpdatedAt(PAST);
     dao.insert(dbSession, customRule.getDefinition());
     dbSession.commit();
-    ruleIndexer.index(organization, customRule.getKey());
+    ruleIndexer.indexRuleDefinitions(asList(customRule.getDefinition().getKey()));
 
     // Verify in index
     assertThat(index.searchAll(new RuleQuery())).containsOnly(templateRule.getKey(), customRule.getKey());
