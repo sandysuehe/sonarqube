@@ -28,5 +28,5 @@ import org.sonar.ce.queue.CeTask;
  * {@link Callable#call()} returns a Boolean which is {@code true} when some a {@link CeTask} was processed,
  * {@code false} otherwise.
  */
-public interface CeWorkerCallable extends Callable<Boolean> {
+public interface CeWorker extends Callable<Boolean> {
 }

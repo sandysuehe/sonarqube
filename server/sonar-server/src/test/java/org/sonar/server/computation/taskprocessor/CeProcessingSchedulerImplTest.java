@@ -63,7 +63,7 @@ public class CeProcessingSchedulerImplTest {
   @Rule
   public CeConfigurationRule ceConfiguration = new CeConfigurationRule();
 
-  private CeWorkerCallable ceWorkerRunnable = mock(CeWorkerCallable.class);
+  private CeWorker ceWorkerRunnable = mock(CeWorker.class);
   private StubCeProcessingSchedulerExecutorService processingExecutorService = new StubCeProcessingSchedulerExecutorService();
   private SchedulerCall regularDelayedPoll = new SchedulerCall(ceWorkerRunnable, 2000L, TimeUnit.MILLISECONDS);
   private SchedulerCall notDelayedPoll = new SchedulerCall(ceWorkerRunnable);

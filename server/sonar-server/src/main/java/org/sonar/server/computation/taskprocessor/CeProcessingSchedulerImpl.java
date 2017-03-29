@@ -39,14 +39,14 @@ public class CeProcessingSchedulerImpl implements CeProcessingScheduler, Startab
   private static final Logger LOG = Loggers.get(CeProcessingSchedulerImpl.class);
 
   private final CeProcessingSchedulerExecutorService executorService;
-  private final CeWorkerCallable workerRunnable;
+  private final CeWorker workerRunnable;
 
   private final long delayBetweenTasks;
   private final TimeUnit timeUnit;
   private final ChainingCallback[] chainingCallbacks;
 
   public CeProcessingSchedulerImpl(CeConfiguration ceConfiguration,
-    CeProcessingSchedulerExecutorService processingExecutorService, CeWorkerCallable workerRunnable) {
+    CeProcessingSchedulerExecutorService processingExecutorService, CeWorker workerRunnable) {
     this.executorService = processingExecutorService;
     this.workerRunnable = workerRunnable;
 

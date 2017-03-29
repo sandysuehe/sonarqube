@@ -19,6 +19,8 @@
  */
 package org.sonar.server.computation.configuration;
 
+import org.sonar.server.computation.taskprocessor.CeWorker;
+
 public interface CeConfiguration {
 
   /**
@@ -27,7 +29,7 @@ public interface CeConfiguration {
   int getWorkerCount();
 
   /**
-   * The delay in milliseconds before calling another {@link org.sonar.server.computation.taskprocessor.CeWorkerCallable}
+   * The delay in milliseconds before calling another {@link CeWorker}
    * when previous one had nothing to do.
    */
   long getQueuePollingDelay();

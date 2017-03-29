@@ -42,7 +42,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-public class CeWorkerCallableImplTest {
+public class CeWorkerImplTest {
 
   private static final String UNKNOWN_WORKER_UUID = "UNKNOWN";
 
@@ -54,7 +54,7 @@ public class CeWorkerCallableImplTest {
   private InternalCeQueue queue = mock(InternalCeQueue.class);
   private ReportTaskProcessor taskProcessor = mock(ReportTaskProcessor.class);
   private CeLogging ceLogging = spy(CeLogging.class);
-  private CeWorkerCallable underTest = new CeWorkerCallableImpl(queue, ceLogging, taskProcessorRepository);
+  private CeWorker underTest = new CeWorkerImpl(queue, ceLogging, taskProcessorRepository);
   private InOrder inOrder = Mockito.inOrder(ceLogging, taskProcessor, queue);
 
   @Test

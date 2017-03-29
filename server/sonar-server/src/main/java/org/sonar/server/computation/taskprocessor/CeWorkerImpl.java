@@ -33,15 +33,15 @@ import org.sonar.server.computation.queue.InternalCeQueue;
 
 import static java.lang.String.format;
 
-public class CeWorkerCallableImpl implements CeWorkerCallable {
+public class CeWorkerImpl implements CeWorker {
 
-  private static final Logger LOG = Loggers.get(CeWorkerCallableImpl.class);
+  private static final Logger LOG = Loggers.get(CeWorkerImpl.class);
 
   private final InternalCeQueue queue;
   private final CeLogging ceLogging;
   private final CeTaskProcessorRepository taskProcessorRepository;
 
-  public CeWorkerCallableImpl(InternalCeQueue queue, CeLogging ceLogging, CeTaskProcessorRepository taskProcessorRepository) {
+  public CeWorkerImpl(InternalCeQueue queue, CeLogging ceLogging, CeTaskProcessorRepository taskProcessorRepository) {
     this.queue = queue;
     this.ceLogging = ceLogging;
     this.taskProcessorRepository = taskProcessorRepository;
