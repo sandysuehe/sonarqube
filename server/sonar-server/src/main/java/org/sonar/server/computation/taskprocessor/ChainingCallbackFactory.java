@@ -17,20 +17,31 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-package org.sonar.server.computation.configuration;
 
-import org.sonar.server.computation.taskprocessor.ChainingCallback;
+package org.sonar.server.computation.taskprocessor;
 
-public interface CeConfiguration {
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * A factory that will create the ChainingCallback with an UUID
+ */
+public interface ChainingCallbackFactory {
+  /**
+   * Create a chaining callback.
+   *
+   * @param worker            the worker
+   * @param executorService   the executor service
+   * @param delayBetweenTasks the delay between tasks
+   * @param timeUnit          the time unit
+   * @return the chaining callback
+   */
+  ChainingCallback create(CeWorker worker, CeProcessingSchedulerExecutorService executorService, long delayBetweenTasks, TimeUnit timeUnit);
 
   /**
-   * The number of workers to process CeTasks concurrently.
+   * Retrieve the set of UUIDs of created ChainingCallbacks
+   *
+   * @return the chaining callback UUIDs
    */
-  int getWorkerCount();
-
-  /**
-   * The delay in milliseconds before calling another {@link ChainingCallback}
-   * when previous one had nothing to do.
-   */
-  long getQueuePollingDelay();
+  Set<String> getChainingCallbackUUIDs();
 }

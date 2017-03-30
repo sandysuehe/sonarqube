@@ -35,18 +35,19 @@ import org.sonar.application.config.TestAppSettings;
 import org.sonar.process.NetworkUtils;
 import org.sonar.process.ProcessId;
 import org.sonar.process.ProcessProperties;
+import org.sonar.process.cluster.ClusterConstants;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.sonar.application.cluster.HazelcastCluster.LEADER;
-import static org.sonar.application.cluster.HazelcastCluster.OPERATIONAL_PROCESSES;
-import static org.sonar.application.cluster.HazelcastCluster.SONARQUBE_VERSION;
 import static org.sonar.application.cluster.HazelcastTestHelper.createHazelcastClient;
 import static org.sonar.application.cluster.HazelcastTestHelper.newClusterSettings;
 import static org.sonar.process.ProcessProperties.CLUSTER_NAME;
+import static org.sonar.process.cluster.ClusterConstants.LEADER;
+import static org.sonar.process.cluster.ClusterConstants.OPERATIONAL_PROCESSES;
+import static org.sonar.process.cluster.ClusterConstants.SONARQUBE_VERSION;
 
 public class HazelcastClusterTest {
   @Rule
@@ -125,6 +126,22 @@ public class HazelcastClusterTest {
     ClusterProperties clusterProperties = new ClusterProperties(testAppSettings);
     try (HazelcastCluster hzCluster = HazelcastCluster.create(clusterProperties)) {
       assertThat(hzCluster.getName()).isEqualTo("a_cluster_");
+    }
+  }
+
+  @Test
+  public void cluster_must_keep_a_list_of_clients() {
+    TestAppSettings testAppSettings = newClusterSettings();
+    testAppSettings.set(CLUSTER_NAME, "a_cluster_");
+    ClusterProperties clusterProperties = new ClusterProperties(testAppSettings);
+    try (HazelcastCluster hzCluster = HazelcastCluster.create(clusterProperties)) {
+      assertThat(hzCluster.hzInstance.getSet(ClusterConstants.CLIENT_UUIDS)).isEmpty();
+      HazelcastInstance hzClient = HazelcastTestHelper.createHazelcastClient(hzCluster);
+      assertThat(hzCluster.hzInstance.getSet(ClusterConstants.CLIENT_UUIDS)).containsExactly(hzClient.getLocalEndpoint().getUuid());
+      hzClient.shutdown();
+
+      // not using isEmpty() here because the detection of empty set is not working with AssertJ
+      assertThat(hzCluster.hzInstance.getSet(ClusterConstants.CLIENT_UUIDS).size()).isEqualTo(0);
     }
   }
 

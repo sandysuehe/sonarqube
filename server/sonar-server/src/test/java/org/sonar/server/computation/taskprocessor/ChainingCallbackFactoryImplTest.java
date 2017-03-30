@@ -17,20 +17,20 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-package org.sonar.server.computation.configuration;
 
-import org.sonar.server.computation.taskprocessor.ChainingCallback;
+package org.sonar.server.computation.taskprocessor;
 
-public interface CeConfiguration {
+import java.util.concurrent.TimeUnit;
+import org.junit.Test;
 
-  /**
-   * The number of workers to process CeTasks concurrently.
-   */
-  int getWorkerCount();
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
-  /**
-   * The delay in milliseconds before calling another {@link ChainingCallback}
-   * when previous one had nothing to do.
-   */
-  long getQueuePollingDelay();
+public class ChainingCallbackFactoryImplTest {
+  @Test
+  public void chainingcallback_created_by_factory_must_contain_uuid() {
+    ChainingCallbackFactoryImpl underTest = new ChainingCallbackFactoryImpl();
+    ChainingCallback chainingCallback = underTest.create(mock(CeWorker.class), mock(CeProcessingSchedulerExecutorService.class), 1, TimeUnit.HOURS);
+    assertThat(chainingCallback.getUuid()).isNotEmpty();
+  }
 }

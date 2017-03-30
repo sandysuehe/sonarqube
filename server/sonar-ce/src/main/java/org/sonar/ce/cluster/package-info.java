@@ -17,20 +17,7 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-package org.sonar.server.computation.configuration;
+@ParametersAreNonnullByDefault
+package org.sonar.ce.cluster;
 
-import org.sonar.server.computation.taskprocessor.ChainingCallback;
-
-public interface CeConfiguration {
-
-  /**
-   * The number of workers to process CeTasks concurrently.
-   */
-  int getWorkerCount();
-
-  /**
-   * The delay in milliseconds before calling another {@link ChainingCallback}
-   * when previous one had nothing to do.
-   */
-  long getQueuePollingDelay();
-}
+import javax.annotation.ParametersAreNonnullByDefault;

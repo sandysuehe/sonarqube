@@ -17,20 +17,29 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-package org.sonar.server.computation.configuration;
 
-import org.sonar.server.computation.taskprocessor.ChainingCallback;
+package org.sonar.server.computation.taskprocessor;
 
-public interface CeConfiguration {
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
-  /**
-   * The number of workers to process CeTasks concurrently.
-   */
-  int getWorkerCount();
+import static java.util.Collections.unmodifiableSet;
 
-  /**
-   * The delay in milliseconds before calling another {@link ChainingCallback}
-   * when previous one had nothing to do.
-   */
-  long getQueuePollingDelay();
+public class ChainingCallbackFactoryImpl implements ChainingCallbackFactory {
+  private final Set<String> chaningCallbackUUIDs = new HashSet<>();
+
+  @Override
+  public ChainingCallback create(CeWorker worker, CeProcessingSchedulerExecutorService executorService,
+    long delayBetweenTasks, TimeUnit timeUnit) {
+    String uuid = UUID.randomUUID().toString();
+    chaningCallbackUUIDs.add(uuid);
+    return new ChainingCallback(worker, executorService, delayBetweenTasks, timeUnit, uuid);
+  }
+
+  @Override
+  public Set<String> getChainingCallbackUUIDs() {
+    return unmodifiableSet(chaningCallbackUUIDs);
+  }
 }

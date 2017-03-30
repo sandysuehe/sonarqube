@@ -63,16 +63,17 @@ public class CeProcessingSchedulerImplTest {
   @Rule
   public CeConfigurationRule ceConfiguration = new CeConfigurationRule();
 
-  private CeWorker ceWorkerRunnable = mock(CeWorker.class);
+  private CeWorker ceWorker = mock(CeWorker.class);
+  private ChainingCallbackFactory chainingCallbackFactory = new ChainingCallbackFactoryImpl();
   private StubCeProcessingSchedulerExecutorService processingExecutorService = new StubCeProcessingSchedulerExecutorService();
-  private SchedulerCall regularDelayedPoll = new SchedulerCall(ceWorkerRunnable, 2000L, TimeUnit.MILLISECONDS);
-  private SchedulerCall notDelayedPoll = new SchedulerCall(ceWorkerRunnable);
+  private SchedulerCall regularDelayedPoll = new SchedulerCall(ceWorker, 2000L, MILLISECONDS);
+  private SchedulerCall notDelayedPoll = new SchedulerCall(ceWorker);
 
-  private CeProcessingSchedulerImpl underTest = new CeProcessingSchedulerImpl(ceConfiguration, processingExecutorService, ceWorkerRunnable);
+  private CeProcessingSchedulerImpl underTest = new CeProcessingSchedulerImpl(ceConfiguration, processingExecutorService, ceWorker, chainingCallbackFactory);
 
   @Test
   public void polls_without_delay_when_CeWorkerCallable_returns_true() throws Exception {
-    when(ceWorkerRunnable.call())
+    when(ceWorker.call())
       .thenReturn(true)
       .thenThrow(ERROR_TO_INTERRUPT_CHAINING);
 
@@ -86,7 +87,7 @@ public class CeProcessingSchedulerImplTest {
 
   @Test
   public void polls_without_delay_when_CeWorkerCallable_throws_Exception_but_not_Error() throws Exception {
-    when(ceWorkerRunnable.call())
+    when(ceWorker.call())
       .thenThrow(new Exception("Exception is followed by a poll without delay"))
       .thenThrow(ERROR_TO_INTERRUPT_CHAINING);
 
@@ -100,7 +101,7 @@ public class CeProcessingSchedulerImplTest {
 
   @Test
   public void polls_with_regular_delay_when_CeWorkerCallable_returns_false() throws Exception {
-    when(ceWorkerRunnable.call())
+    when(ceWorker.call())
       .thenReturn(false)
       .thenThrow(ERROR_TO_INTERRUPT_CHAINING);
 
@@ -114,7 +115,7 @@ public class CeProcessingSchedulerImplTest {
 
   @Test
   public void startScheduling_schedules_CeWorkerCallable_at_fixed_rate_run_head_of_queue() throws Exception {
-    when(ceWorkerRunnable.call())
+    when(ceWorker.call())
       .thenReturn(true)
       .thenReturn(true)
       .thenReturn(false)
@@ -144,7 +145,7 @@ public class CeProcessingSchedulerImplTest {
 
   @Test
   public void stop_cancels_next_polling_and_does_not_add_any_new_one() throws Exception {
-    when(ceWorkerRunnable.call())
+    when(ceWorker.call())
       .thenReturn(false)
       .thenReturn(true)
       .thenReturn(false)
@@ -189,13 +190,13 @@ public class CeProcessingSchedulerImplTest {
 
     ListenableScheduledFuture listenableScheduledFuture = mock(ListenableScheduledFuture.class);
     CeProcessingSchedulerExecutorService processingExecutorService = mock(CeProcessingSchedulerExecutorService.class);
-    CeProcessingSchedulerImpl underTest = new CeProcessingSchedulerImpl(ceConfiguration, processingExecutorService, ceWorkerRunnable);
-    when(processingExecutorService.schedule(ceWorkerRunnable, ceConfiguration.getQueuePollingDelay(), MILLISECONDS))
+    CeProcessingSchedulerImpl underTest = new CeProcessingSchedulerImpl(ceConfiguration, processingExecutorService, ceWorker, chainingCallbackFactory);
+    when(processingExecutorService.schedule(ceWorker, ceConfiguration.getQueuePollingDelay(), MILLISECONDS))
         .thenReturn(listenableScheduledFuture);
 
     underTest.startScheduling();
 
-    verify(processingExecutorService, times(workerCount)).schedule(ceWorkerRunnable, ceConfiguration.getQueuePollingDelay(), MILLISECONDS);
+    verify(processingExecutorService, times(workerCount)).schedule(ceWorker, ceConfiguration.getQueuePollingDelay(), MILLISECONDS);
     verify(listenableScheduledFuture, times(workerCount)).addListener(any(Runnable.class), eq(processingExecutorService));
   }
 
@@ -226,7 +227,7 @@ public class CeProcessingSchedulerImplTest {
     public void runFutures() throws ExecutionException, InterruptedException {
       while (futures.peek() != null) {
         Future<?> future = futures.poll();
-        if (!future.isCancelled()) {
+         if (!future.isCancelled()) {
           future.get();
         }
       }
@@ -538,5 +539,4 @@ public class CeProcessingSchedulerImplTest {
         '}';
     }
   }
-
 }

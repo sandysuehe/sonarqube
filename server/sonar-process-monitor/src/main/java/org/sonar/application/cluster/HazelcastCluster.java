@@ -23,6 +23,8 @@ package org.sonar.application.cluster;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.JoinConfig;
 import com.hazelcast.config.NetworkConfig;
+import com.hazelcast.core.Client;
+import com.hazelcast.core.ClientListener;
 import com.hazelcast.core.EntryEvent;
 import com.hazelcast.core.EntryListener;
 import com.hazelcast.core.Hazelcast;
@@ -32,6 +34,7 @@ import com.hazelcast.core.ILock;
 import com.hazelcast.core.MapEvent;
 import com.hazelcast.core.Member;
 import com.hazelcast.core.ReplicatedMap;
+import com.hazelcast.nio.Address;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,16 +44,17 @@ import org.sonar.process.ProcessId;
 
 import static java.util.stream.Collectors.toList;
 import static org.sonar.process.NetworkUtils.getHostName;
+import static org.sonar.process.cluster.ClusterConstants.CLIENT_UUIDS;
+import static org.sonar.process.cluster.ClusterConstants.HOSTNAME;
+import static org.sonar.process.cluster.ClusterConstants.LEADER;
+import static org.sonar.process.cluster.ClusterConstants.OPERATIONAL_PROCESSES;
+import static org.sonar.process.cluster.ClusterConstants.SONARQUBE_VERSION;
 
 public class HazelcastCluster implements AutoCloseable {
-  static final String OPERATIONAL_PROCESSES = "OPERATIONAL_PROCESSES";
-  static final String LEADER = "LEADER";
-  static final String HOSTNAME = "HOSTNAME";
-  static final String SONARQUBE_VERSION = "SONARQUBE_VERSION";
-
   private final List<AppStateListener> listeners = new ArrayList<>();
   private final ReplicatedMap<ClusterProcess, Boolean> operationalProcesses;
   private final String operationalProcessListenerUUID;
+  private final String clientListenerUUID;
 
   final HazelcastInstance hzInstance;
 
@@ -61,6 +65,7 @@ public class HazelcastCluster implements AutoCloseable {
     // Get or create the replicated map
     operationalProcesses = hzInstance.getReplicatedMap(OPERATIONAL_PROCESSES);
     operationalProcessListenerUUID = operationalProcesses.addEntryListener(new OperationalProcessListener());
+    clientListenerUUID = hzInstance.getClientService().addClientListener(new ConnectedClientListener());
   }
 
   String getLocalUuid() {
@@ -142,6 +147,7 @@ public class HazelcastCluster implements AutoCloseable {
     if (hzInstance != null) {
       // Removing listeners
       operationalProcesses.removeEntryListener(operationalProcessListenerUUID);
+      hzInstance.getClientService().removeClientListener(clientListenerUUID);
 
       // Removing the operationalProcess from the replicated map
       operationalProcesses.keySet().forEach(
@@ -209,6 +215,11 @@ public class HazelcastCluster implements AutoCloseable {
     return "No leader";
   }
 
+  String getLocalEndPoint() {
+    Address localAddress = hzInstance.getCluster().getLocalMember().getAddress();
+    return String.format("%s:%d", localAddress.getHost(), localAddress.getPort());
+  }
+
   private class OperationalProcessListener implements EntryListener<ClusterProcess, Boolean> {
     @Override
     public void entryAdded(EntryEvent<ClusterProcess, Boolean> event) {
@@ -242,6 +253,18 @@ public class HazelcastCluster implements AutoCloseable {
     @Override
     public void mapEvicted(MapEvent event) {
       // Ignore it
+    }
+  }
+
+  private class ConnectedClientListener implements ClientListener {
+    @Override
+    public void clientConnected(Client client) {
+      hzInstance.getSet(CLIENT_UUIDS).add(client.getUuid());
+    }
+
+    @Override
+    public void clientDisconnected(Client client) {
+      hzInstance.getSet(CLIENT_UUIDS).remove(client.getUuid());
     }
   }
 }
