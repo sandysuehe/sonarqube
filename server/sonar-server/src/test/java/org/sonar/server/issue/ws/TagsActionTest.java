@@ -39,6 +39,7 @@ import org.sonar.server.issue.index.IssueIndexer;
 import org.sonar.server.issue.index.IssueIteratorFactory;
 import org.sonar.server.organization.TestDefaultOrganizationProvider;
 import org.sonar.server.permission.index.AuthorizationTypeSupport;
+import org.sonar.server.rule.index.RuleIndex;
 import org.sonar.server.rule.index.RuleIndexDefinition;
 import org.sonar.server.rule.index.RuleIndexer;
 import org.sonar.server.tester.UserSessionRule;
@@ -64,8 +65,9 @@ public class TagsActionTest {
   private IssueIndexer issueIndexer = new IssueIndexer(es.client(), new IssueIteratorFactory(db.getDbClient()));
   private RuleIndexer ruleIndexer = new RuleIndexer(es.client(), db.getDbClient());
   private IssueIndex issueIndex = new IssueIndex(es.client(), System2.INSTANCE, userSession, new AuthorizationTypeSupport(userSession));
+  private RuleIndex ruleIndex = new RuleIndex(es.client());
 
-  private WsActionTester tester = new WsActionTester(new TagsAction(issueIndex, TestDefaultOrganizationProvider.from(db)));
+  private WsActionTester tester = new WsActionTester(new TagsAction(issueIndex, ruleIndex, TestDefaultOrganizationProvider.from(db)));
   private OrganizationDto organization;
 
   @Before

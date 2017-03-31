@@ -56,7 +56,6 @@ import org.sonar.api.rule.RuleKey;
 import org.sonar.api.rule.RuleStatus;
 import org.sonar.api.rule.Severity;
 import org.sonar.api.rules.RuleType;
-import org.sonar.db.organization.OrganizationDto;
 import org.sonar.server.es.EsClient;
 import org.sonar.server.es.EsUtils;
 import org.sonar.server.es.SearchIdResult;
@@ -517,11 +516,11 @@ public class RuleIndex {
     return terms;
   }
 
-  public Set<String> tags(OrganizationDto organization, String query, int size) {
+  public Set<String> listTags(String organizationUuid, String query, int size) {
     TermsQueryBuilder scopeFilter = QueryBuilders.termsQuery(
       FIELD_RULE_EXTENSION_SCOPE,
       RuleExtensionScope.system().getScope(),
-      RuleExtensionScope.organization(organization).getScope());
+      RuleExtensionScope.organization(organizationUuid).getScope());
 
     TermsBuilder termsAggregation = AggregationBuilders.terms(AGGREGATION_NAME_FOR_TAGS)
       .field(FIELD_RULE_EXTENSION_TAGS)

@@ -81,7 +81,7 @@ public class TagsAction implements RulesWsAction {
     String query = request.param(Param.TEXT_QUERY);
     int pageSize = request.mandatoryParamAsInt("ps");
 
-    Set<String> tags = ruleIndex.tags(organization, query, pageSize == 0 ? Integer.MAX_VALUE : pageSize);
+    Set<String> tags = ruleIndex.listTags(organization.getUuid(), query, pageSize == 0 ? Integer.MAX_VALUE : pageSize);
 
     writeResponse(response, tags);
   }

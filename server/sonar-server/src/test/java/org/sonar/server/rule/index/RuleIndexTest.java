@@ -561,7 +561,7 @@ public class RuleIndexTest {
     ruleIndexer.indexRuleDefinitions(asList(rule2.getKey()));
     ruleIndexer.indexRuleExtension(organization, rule2.getKey());
 
-    assertThat(index.tags(organization, null, 10)).containsOnly("tag1", "tag2", "sys1", "sys2");
+    assertThat(index.listTags(organization.getUuid(), null, 10)).containsOnly("tag1", "tag2", "sys1", "sys2");
   }
 
   @Test
@@ -580,8 +580,8 @@ public class RuleIndexTest {
     ruleIndexer.indexRuleDefinitions(asList(rule2.getKey()));
     ruleIndexer.indexRuleExtension(organization2, rule2.getKey());
 
-    assertThat(index.tags(organization1, null, 10)).containsOnly("tag1", "sys1", "sys2");
-    assertThat(index.tags(organization2, null, 10)).containsOnly("tag2", "sys1", "sys2");
+    assertThat(index.listTags(organization1.getUuid(), null, 10)).containsOnly("tag1", "sys1", "sys2");
+    assertThat(index.listTags(organization2.getUuid(), null, 10)).containsOnly("tag2", "sys1", "sys2");
   }
 
   @Test
