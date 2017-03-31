@@ -29,4 +29,5 @@ import org.sonar.ce.queue.CeTask;
  * {@code false} otherwise.
  */
 public interface CeWorker extends Callable<Boolean> {
+  String getUUID();
 }

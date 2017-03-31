@@ -43,14 +43,14 @@ import org.sonar.ce.CeConfigurationModule;
 import org.sonar.ce.CeHttpModule;
 import org.sonar.ce.CeQueueModule;
 import org.sonar.ce.CeTaskCommonsModule;
-import org.sonar.ce.cluster.ClusterClient;
+import org.sonar.ce.cluster.HazelcastClientWrapper;
 import org.sonar.ce.db.ReadOnlyPropertiesDao;
 import org.sonar.ce.log.CeProcessLogging;
 import org.sonar.ce.platform.ComputeEngineExtensionInstaller;
 import org.sonar.ce.settings.ProjectSettingsFactory;
 import org.sonar.ce.user.CeUserSession;
-import org.sonar.ce.worker.ClusterWorkerUUIDsProviderImpl;
-import org.sonar.ce.worker.SingleWorkerUUIDsProviderImpl;
+import org.sonar.ce.worker.CeDistributedInformationImpl;
+import org.sonar.ce.worker.StandaloneCeDistributedInformation;
 import org.sonar.core.component.DefaultResourceTypes;
 import org.sonar.core.config.CorePropertyDefinitions;
 import org.sonar.core.i18n.DefaultI18n;
@@ -180,12 +180,12 @@ public class ComputeEngineContainerImpl implements ComputeEngineContainer {
     // TODO refactoring levelXComponents()
     if (props.valueAsBoolean("sonar.cluster.enabled")) {
       this.level4.add(
-        ClusterClient.class,
-        ClusterWorkerUUIDsProviderImpl.class
+        HazelcastClientWrapper.class,
+        CeDistributedInformationImpl.class
       );
     } else {
       this.level4.add(
-        SingleWorkerUUIDsProviderImpl.class
+        StandaloneCeDistributedInformation.class
       );
     }
     configureFromModules(this.level4);

@@ -39,21 +39,32 @@ package org.sonar.ce.worker;/*
  */
 
 import java.util.Set;
-import org.sonar.server.computation.taskprocessor.ChainingCallbackFactory;
-import org.sonar.server.computation.taskprocessor.WorkerUUIDsProvider;
+import org.sonar.server.computation.taskprocessor.CeWorkerFactory;
+import org.sonar.server.computation.taskprocessor.CeDistributedInformation;
 
 /**
  * Provide the set of worker's UUID in a non clustered SonarQube instance
  */
-public class SingleWorkerUUIDsProviderImpl implements WorkerUUIDsProvider {
-  private final ChainingCallbackFactory ceChainingCallbackFactory;
+public class StandaloneCeDistributedInformation implements CeDistributedInformation {
+  private final CeWorkerFactory ceCeWorkerFactory;
+  private Set<String> workerUUIDs;
 
-  public SingleWorkerUUIDsProviderImpl(ChainingCallbackFactory ceChainingCallbackFactory) {
-    this.ceChainingCallbackFactory = ceChainingCallbackFactory;
+  public StandaloneCeDistributedInformation(CeWorkerFactory ceCeWorkerFactory) {
+    this.ceCeWorkerFactory = ceCeWorkerFactory;
   }
 
   @Override
   public Set<String> getWorkerUUIDs() {
-    return ceChainingCallbackFactory.getChainingCallbackUUIDs();
+    return workerUUIDs;
+  }
+
+  @Override
+  public void broadcastWorkerUUIDs() {
+    workerUUIDs = ceCeWorkerFactory.getWorkerUUIDs();
+  }
+
+  @Override
+  public void stop() {
+    // Nothing to do
   }
 }

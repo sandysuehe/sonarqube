@@ -40,11 +40,13 @@ public class CeWorkerImpl implements CeWorker {
   private final InternalCeQueue queue;
   private final CeLogging ceLogging;
   private final CeTaskProcessorRepository taskProcessorRepository;
+  private final String uuid;
 
-  public CeWorkerImpl(InternalCeQueue queue, CeLogging ceLogging, CeTaskProcessorRepository taskProcessorRepository) {
+  public CeWorkerImpl(InternalCeQueue queue, CeLogging ceLogging, CeTaskProcessorRepository taskProcessorRepository, String uuid) {
     this.queue = queue;
     this.ceLogging = ceLogging;
     this.taskProcessorRepository = taskProcessorRepository;
+    this.uuid = uuid;
   }
 
   @Override
@@ -69,6 +71,11 @@ public class CeWorkerImpl implements CeWorker {
       LOG.error("Failed to pop the queue of analysis reports", e);
     }
     return Optional.absent();
+  }
+
+  @Override
+  public String getUUID() {
+    return uuid;
   }
 
   private void executeTask(CeTask task) {

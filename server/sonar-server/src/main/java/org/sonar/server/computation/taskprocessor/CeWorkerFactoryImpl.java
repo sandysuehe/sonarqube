@@ -23,23 +23,32 @@ package org.sonar.server.computation.taskprocessor;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
+import org.sonar.ce.log.CeLogging;
+import org.sonar.server.computation.queue.InternalCeQueue;
 
 import static java.util.Collections.unmodifiableSet;
 
-public class ChainingCallbackFactoryImpl implements ChainingCallbackFactory {
+public class CeWorkerFactoryImpl implements CeWorkerFactory {
   private final Set<String> chaningCallbackUUIDs = new HashSet<>();
+  private final InternalCeQueue queue;
+  private final CeLogging ceLogging;
+  private final CeTaskProcessorRepository taskProcessorRepository;
 
-  @Override
-  public ChainingCallback create(CeWorker worker, CeProcessingSchedulerExecutorService executorService,
-    long delayBetweenTasks, TimeUnit timeUnit) {
-    String uuid = UUID.randomUUID().toString();
-    chaningCallbackUUIDs.add(uuid);
-    return new ChainingCallback(worker, executorService, delayBetweenTasks, timeUnit, uuid);
+  public CeWorkerFactoryImpl(InternalCeQueue queue, CeLogging ceLogging, CeTaskProcessorRepository taskProcessorRepository) {
+    this.queue = queue;
+    this.ceLogging = ceLogging;
+    this.taskProcessorRepository = taskProcessorRepository;
   }
 
   @Override
-  public Set<String> getChainingCallbackUUIDs() {
+  public CeWorker create() {
+    String uuid = UUID.randomUUID().toString();
+    chaningCallbackUUIDs.add(uuid);
+    return new CeWorkerImpl(queue, ceLogging, taskProcessorRepository, uuid);
+  }
+
+  @Override
+  public Set<String> getWorkerUUIDs() {
     return unmodifiableSet(chaningCallbackUUIDs);
   }
 }

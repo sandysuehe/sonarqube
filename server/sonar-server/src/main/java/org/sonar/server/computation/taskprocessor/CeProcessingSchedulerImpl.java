@@ -19,8 +19,14 @@
  */
 package org.sonar.server.computation.taskprocessor;
 
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
 import org.picocontainer.Startable;
 import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
@@ -33,16 +39,14 @@ public class CeProcessingSchedulerImpl implements CeProcessingScheduler, Startab
   private static final Logger LOG = Loggers.get(CeProcessingSchedulerImpl.class);
 
   private final CeProcessingSchedulerExecutorService executorService;
-  private final CeWorker worker;
 
   private final long delayBetweenTasks;
   private final TimeUnit timeUnit;
   private final ChainingCallback[] chainingCallbacks;
 
   public CeProcessingSchedulerImpl(CeConfiguration ceConfiguration,
-    CeProcessingSchedulerExecutorService processingExecutorService, CeWorker worker, ChainingCallbackFactory ceChainingCallbackFactory) {
+    CeProcessingSchedulerExecutorService processingExecutorService, CeWorkerFactory ceCeWorkerFactory) {
     this.executorService = processingExecutorService;
-    this.worker = worker;
 
     this.delayBetweenTasks = ceConfiguration.getQueuePollingDelay();
     this.timeUnit = MILLISECONDS;
@@ -50,7 +54,8 @@ public class CeProcessingSchedulerImpl implements CeProcessingScheduler, Startab
     int workerCount = ceConfiguration.getWorkerCount();
     this.chainingCallbacks = new ChainingCallback[workerCount];
     for (int i = 0; i < workerCount; i++) {
-      chainingCallbacks[i] = ceChainingCallbackFactory.create(worker, executorService, delayBetweenTasks, timeUnit);
+      CeWorker worker = ceCeWorkerFactory.create();
+      chainingCallbacks[i] = new ChainingCallback(worker);
     }
   }
 
@@ -62,7 +67,7 @@ public class CeProcessingSchedulerImpl implements CeProcessingScheduler, Startab
   @Override
   public void startScheduling() {
     for (ChainingCallback chainingCallback : chainingCallbacks) {
-      ListenableScheduledFuture<Boolean> future = executorService.schedule(worker, delayBetweenTasks, timeUnit);
+      ListenableScheduledFuture<Boolean> future = executorService.schedule(chainingCallback.worker, delayBetweenTasks, timeUnit);
       addCallback(future, chainingCallback, executorService);
     }
   }
@@ -71,6 +76,67 @@ public class CeProcessingSchedulerImpl implements CeProcessingScheduler, Startab
   public void stop() {
     for (ChainingCallback chainingCallback : chainingCallbacks) {
       chainingCallback.stop();
+    }
+  }
+
+  private class ChainingCallback implements FutureCallback<Boolean> {
+    private final AtomicBoolean keepRunning = new AtomicBoolean(true);
+    private final CeWorker worker;
+
+    @CheckForNull
+    private ListenableFuture<Boolean> workerFuture;
+
+    public ChainingCallback(CeWorker worker) {
+      this.worker = worker;
+    }
+
+    @Override
+    public void onSuccess(@Nullable Boolean result) {
+      if (result != null && result) {
+        chainWithoutDelay();
+      } else {
+        chainWithDelay();
+      }
+    }
+
+    @Override
+    public void onFailure(Throwable t) {
+      if (t instanceof Error) {
+        LOG.error("Compute Engine execution failed. Scheduled processing interrupted.", t);
+      } else {
+        chainWithoutDelay();
+      }
+    }
+
+    private void chainWithoutDelay() {
+      if (keepRunning()) {
+        workerFuture = executorService.submit(worker);
+      }
+      addCallback();
+    }
+
+    private void chainWithDelay() {
+      if (keepRunning()) {
+        workerFuture = executorService.schedule(worker, delayBetweenTasks, timeUnit);
+      }
+      addCallback();
+    }
+
+    private void addCallback() {
+      if (workerFuture != null && keepRunning()) {
+        Futures.addCallback(workerFuture, this, executorService);
+      }
+    }
+
+    private boolean keepRunning() {
+      return keepRunning.get();
+    }
+
+    public void stop() {
+      this.keepRunning.set(false);
+      if (workerFuture != null) {
+        workerFuture.cancel(false);
+      }
     }
   }
 }

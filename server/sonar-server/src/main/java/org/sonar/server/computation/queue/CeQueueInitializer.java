@@ -24,6 +24,7 @@ import org.sonar.api.platform.Server;
 import org.sonar.api.platform.ServerStartHandler;
 import org.sonar.db.DbClient;
 import org.sonar.db.DbSession;
+import org.sonar.server.computation.taskprocessor.CeDistributedInformation;
 import org.sonar.server.computation.taskprocessor.CeProcessingScheduler;
 
 /**
@@ -37,12 +38,14 @@ public class CeQueueInitializer implements ServerStartHandler {
   private final DbClient dbClient;
   private final CeQueueCleaner cleaner;
   private final CeProcessingScheduler scheduler;
+  private final CeDistributedInformation ceDistributedInformation;
   private boolean done = false;
 
-  public CeQueueInitializer(DbClient dbClient, CeQueueCleaner cleaner, CeProcessingScheduler scheduler) {
+  public CeQueueInitializer(DbClient dbClient, CeQueueCleaner cleaner, CeProcessingScheduler scheduler, CeDistributedInformation ceDistributedInformation) {
     this.dbClient = dbClient;
     this.cleaner = cleaner;
     this.scheduler = scheduler;
+    this.ceDistributedInformation = ceDistributedInformation;
   }
 
   @Override
@@ -58,5 +61,6 @@ public class CeQueueInitializer implements ServerStartHandler {
       cleaner.clean(dbSession);
       scheduler.startScheduling();
     }
+    ceDistributedInformation.broadcastWorkerUUIDs();
   }
 }

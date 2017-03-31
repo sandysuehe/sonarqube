@@ -21,6 +21,7 @@ package org.sonar.server.computation.taskprocessor;
 
 import com.google.common.base.Optional;
 import java.util.List;
+import java.util.UUID;
 import javax.annotation.Nullable;
 import org.junit.Rule;
 import org.junit.Test;
@@ -54,7 +55,7 @@ public class CeWorkerImplTest {
   private InternalCeQueue queue = mock(InternalCeQueue.class);
   private ReportTaskProcessor taskProcessor = mock(ReportTaskProcessor.class);
   private CeLogging ceLogging = spy(CeLogging.class);
-  private CeWorker underTest = new CeWorkerImpl(queue, ceLogging, taskProcessorRepository);
+  private CeWorker underTest = new CeWorkerImpl(queue, ceLogging, taskProcessorRepository, UUID.randomUUID().toString());
   private InOrder inOrder = Mockito.inOrder(ceLogging, taskProcessor, queue);
 
   @Test

@@ -28,6 +28,7 @@ import org.sonar.api.platform.Server;
 import org.sonar.api.utils.System2;
 import org.sonar.db.DbSession;
 import org.sonar.db.DbTester;
+import org.sonar.server.computation.taskprocessor.CeDistributedInformation;
 import org.sonar.server.computation.taskprocessor.CeProcessingScheduler;
 
 import static org.mockito.Matchers.any;
@@ -43,7 +44,7 @@ public class CeQueueInitializerTest {
   Server server = mock(Server.class);
   CeQueueCleaner cleaner = mock(CeQueueCleaner.class);
   CeProcessingScheduler scheduler = mock(CeProcessingScheduler.class);
-  CeQueueInitializer underTest = new CeQueueInitializer(dbTester.getDbClient(), cleaner, scheduler);
+  CeQueueInitializer underTest = new CeQueueInitializer(dbTester.getDbClient(), cleaner, scheduler, mock(CeDistributedInformation.class));
 
   @Test
   public void clean_queue_then_start_scheduler_of_workers() throws IOException {

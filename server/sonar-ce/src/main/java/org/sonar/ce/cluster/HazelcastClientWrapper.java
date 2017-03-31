@@ -23,31 +23,27 @@ package org.sonar.ce.cluster;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.picocontainer.Startable;
 import org.sonar.api.config.Settings;
 import org.sonar.process.ProcessProperties;
-import org.sonar.server.computation.taskprocessor.ChainingCallbackFactory;
 
 import static com.google.common.base.Preconditions.checkState;
-import static java.util.stream.Collectors.toSet;
 import static org.apache.commons.lang.StringUtils.isNotEmpty;
 import static org.sonar.process.cluster.ClusterConstants.CLIENT_UUIDS;
-import static org.sonar.process.cluster.ClusterConstants.WORKER_UUIDS;
 
 /**
  * This class will connect as a Hazelcast client to the local instance of Hazelcluster
  */
-public class ClusterClient implements Startable {
+public class HazelcastClientWrapper implements Startable {
 
-  private final ChainingCallbackFactory ceChainingCallbackFactory;
   private final ClientConfig hzConfig;
 
-  Map<String, Set<String>> workerUUIDS;
   private HazelcastInstance hzInstance;
 
-  public ClusterClient(Settings settings, ChainingCallbackFactory ceChainingCallbackFactory) {
+  public HazelcastClientWrapper(Settings settings) {
     boolean clusterEnabled = settings.getBoolean(ProcessProperties.CLUSTER_ENABLED);
     String clusterName = settings.getString(ProcessProperties.CLUSTER_NAME);
     String clusterLocalEndPoint = settings.getString(ProcessProperties.CLUSTER_LOCALENDPOINT);
@@ -70,32 +66,40 @@ public class ClusterClient implements Startable {
       .setProperty("hazelcast.phone.home.enabled", "false")
       // Use slf4j for logging
       .setProperty("hazelcast.logging.type", "slf4j");
-
-    // Create the Hazelcast instance
-    this.ceChainingCallbackFactory = ceChainingCallbackFactory;
   }
 
-  public Set<String> getWorkerUUIDs() {
-    Set<String> connectedWorkerUUIDs = hzInstance.getSet(CLIENT_UUIDS);
+  public <E> Set<E> getSet(String name) {
+    return hzInstance.getSet(name);
+  }
 
-    return workerUUIDS.entrySet().stream()
-      .filter(e -> connectedWorkerUUIDs.contains(e.getKey()))
-      .map(Map.Entry::getValue)
-      .flatMap(Set::stream)
-      .collect(toSet());
+  public <E> List<E> getList(String name) {
+    return hzInstance.getList(name);
+  }
+
+  public <K, V> Map<K, V> getMap(String name) {
+    return hzInstance.getMap(name);
+  }
+
+  public <K,V> Map<K,V> getReplicatedMap(String name) {
+    return hzInstance.getReplicatedMap(name);
+  }
+
+  public String getClientUUID() {
+    return hzInstance.getLocalEndpoint().getUuid();
+  }
+
+  public Set<String> getConnectedClients() {
+    return hzInstance.getSet(CLIENT_UUIDS);
   }
 
   @Override
   public void start() {
     this.hzInstance = HazelcastClient.newHazelcastClient(hzConfig);
-    this.workerUUIDS = hzInstance.getReplicatedMap(WORKER_UUIDS);
-    this.workerUUIDS.put(hzInstance.getLocalEndpoint().getUuid(), ceChainingCallbackFactory.getChainingCallbackUUIDs());
   }
 
   @Override
   public void stop() {
     hzInstance.getReplicatedMap(CLIENT_UUIDS).remove(hzInstance.getLocalEndpoint().getUuid());
-    workerUUIDS.remove(hzInstance.getLocalEndpoint().getUuid());
     // Shutdown Hazelcast properly
     hzInstance.shutdown();
   }

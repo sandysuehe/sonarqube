@@ -19,7 +19,6 @@
  */
 package org.sonar.server.computation.configuration;
 
-import org.sonar.server.computation.taskprocessor.ChainingCallback;
 
 public interface CeConfiguration {
 
@@ -29,7 +28,7 @@ public interface CeConfiguration {
   int getWorkerCount();
 
   /**
-   * The delay in milliseconds before calling another {@link ChainingCallback}
+   * The delay in milliseconds before calling another {@link org.sonar.server.computation.taskprocessor.CeProcessingSchedulerImpl.ChainingCallbackngCallback}
    * when previous one had nothing to do.
    */
   long getQueuePollingDelay();

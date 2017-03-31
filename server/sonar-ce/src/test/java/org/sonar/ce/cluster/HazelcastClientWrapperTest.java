@@ -22,11 +22,12 @@ package org.sonar.ce.cluster;
 
 import com.hazelcast.core.HazelcastInstance;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.DisableOnDebug;
@@ -38,24 +39,16 @@ import org.sonar.api.config.PropertyDefinitions;
 import org.sonar.api.config.Settings;
 import org.sonar.process.NetworkUtils;
 import org.sonar.process.ProcessProperties;
-import org.sonar.server.computation.taskprocessor.CeProcessingSchedulerExecutorService;
-import org.sonar.server.computation.taskprocessor.CeWorker;
-import org.sonar.server.computation.taskprocessor.ChainingCallback;
-import org.sonar.server.computation.taskprocessor.ChainingCallbackFactory;
 
-import static java.util.Collections.unmodifiableSet;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
+import static org.assertj.core.data.MapEntry.entry;
 
-public class ClusterClientTest {
+public class HazelcastClientWrapperTest {
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
   @Rule
   public TestRule safeGuard = new DisableOnDebug(Timeout.seconds(10));
-
-  private CeWorker worker = mock(CeWorker.class);
-  private CeProcessingSchedulerExecutorService executorService = mock(CeProcessingSchedulerExecutorService.class);
 
   @Test
   public void missing_CLUSTER_ENABLED_throw_ISE() {
@@ -64,8 +57,8 @@ public class ClusterClientTest {
 
     Settings settings = createClusterSettings("sonarqube", "localhost:9003");
     settings.removeProperty(ProcessProperties.CLUSTER_ENABLED);
-    ClusterClient clusterClient = new ClusterClient(settings, new ChainingCallbackFactoryTest());
-    clusterClient.stop();
+    HazelcastClientWrapper hazelcastClientWrapper = new HazelcastClientWrapper(settings);
+    hazelcastClientWrapper.stop();
   }
 
   @Test
@@ -75,8 +68,8 @@ public class ClusterClientTest {
 
     Settings settings = createClusterSettings("sonarqube", "localhost:9003");
     settings.removeProperty(ProcessProperties.CLUSTER_NAME);
-    ClusterClient clusterClient = new ClusterClient(settings, new ChainingCallbackFactoryTest());
-    clusterClient.stop();
+    HazelcastClientWrapper hazelcastClientWrapper = new HazelcastClientWrapper(settings);
+    hazelcastClientWrapper.stop();
   }
 
   @Test
@@ -86,8 +79,8 @@ public class ClusterClientTest {
 
     Settings settings = createClusterSettings("sonarqube", "localhost:9003");
     settings.removeProperty(ProcessProperties.CLUSTER_LOCALENDPOINT);
-    ClusterClient clusterClient = new ClusterClient(settings, new ChainingCallbackFactoryTest());
-    clusterClient.stop();
+    HazelcastClientWrapper hazelcastClientWrapper = new HazelcastClientWrapper(settings);
+    hazelcastClientWrapper.stop();
   }
 
   @Test
@@ -96,48 +89,42 @@ public class ClusterClientTest {
     // Launch a fake Hazelcast instance
     HazelcastInstance hzInstance = HazelcastTestHelper.createHazelcastCluster("client_must_connect_to_hazelcast", port);
     Settings settings = createClusterSettings("client_must_connect_to_hazelcast", "localhost:" + port);
-    ClusterClient clusterClient = new ClusterClient(settings, new ChainingCallbackFactoryTest());
-    clusterClient.start();
-    // No exception thrown
-    clusterClient.stop();
+    HazelcastClientWrapper hazelcastClientWrapper = new HazelcastClientWrapper(settings);
+    hazelcastClientWrapper.start();
+    assertThat(hazelcastClientWrapper.getConnectedClients()).hasSize(1);
+    assertThat(hazelcastClientWrapper.getClientUUID()).isNotEmpty();
+    hazelcastClientWrapper.stop();
   }
 
   @Test
-  public void worker_uuids_must_be_synchronized_with_cluster() {
+  public void client_must_be_able_to_retrieve_clustered_objects() {
     int port = NetworkUtils.freePort();
+    // Launch a fake Hazelcast instance
     HazelcastInstance hzInstance = HazelcastTestHelper.createHazelcastCluster("client_must_connect_to_hazelcast", port);
     Settings settings = createClusterSettings("client_must_connect_to_hazelcast", "localhost:" + port);
-    ChainingCallbackFactoryTest ceWorkerFactory = new ChainingCallbackFactoryTest();
-    ClusterClient clusterClient = new ClusterClient(settings, ceWorkerFactory);
+    HazelcastClientWrapper hazelcastClientWrapper = new HazelcastClientWrapper(settings);
+    hazelcastClientWrapper.start();
 
-    // Add a two workers
-    ceWorkerFactory.create(worker, executorService, 1, TimeUnit.MINUTES);
-    ceWorkerFactory.create(worker, executorService, 1, TimeUnit.MINUTES);
+    // Set
+    Set<String> setTest = new HashSet<>();
+    setTest.addAll(Arrays.asList("8", "9"));
+    hzInstance.getSet("TEST1").addAll(setTest);
+    assertThat(hazelcastClientWrapper.getSet("TEST1")).containsAll(setTest);
 
-    // Simulate the start of the container
-    clusterClient.start();
-    assertThat(clusterClient.getWorkerUUIDs()).isEqualTo(ceWorkerFactory.workerUUIDs);
-    clusterClient.stop();
-  }
+    // List
+    List<String> listTest = Arrays.asList("1", "2");
+    hzInstance.getList("TEST2").addAll(listTest);
+    assertThat(hazelcastClientWrapper.getList("TEST2")).containsAll(listTest);
 
-  @Test
-  public void getWorkerUUIDs_must_filter_absent_client() {
-    int port = NetworkUtils.freePort();
-    HazelcastInstance hzInstance = HazelcastTestHelper.createHazelcastCluster("client_must_connect_to_hazelcast", port);
-    Settings settings = createClusterSettings("client_must_connect_to_hazelcast", "localhost:" + port);
-    ChainingCallbackFactoryTest ceWorkerFactory = new ChainingCallbackFactoryTest();
-    ClusterClient clusterClient = new ClusterClient(settings, ceWorkerFactory);
-    // Add a two workers
-    ceWorkerFactory.create(worker, executorService, 1, TimeUnit.MINUTES);
-    ceWorkerFactory.create(worker, executorService, 1, TimeUnit.MINUTES);
-    clusterClient.start();
+    // Map
+    Map mapTest = new HashMap<>();
+    mapTest.put("a", Arrays.asList("123", "456"));
+    hzInstance.getMap("TEST3").putAll(mapTest);
+    assertThat(hazelcastClientWrapper.getMap("TEST3")).containsExactly(
+      entry("a", Arrays.asList("123", "456"))
+    );
 
-    // Inject fake workerUUIDS
-    clusterClient.workerUUIDS.put("NON_EXISTENT_UUID1", new HashSet<>(Arrays.asList("a", "b", "c")));
-    clusterClient.workerUUIDS.put("NON_EXISTENT_UUID2", new HashSet<>(Arrays.asList("d", "e", "f")));
-
-    assertThat(clusterClient.getWorkerUUIDs()).isEqualTo(ceWorkerFactory.workerUUIDs);
-    clusterClient.stop();
+    hazelcastClientWrapper.stop();
   }
 
   private static Settings createClusterSettings(String name, String localEndPoint) {
@@ -146,21 +133,5 @@ public class ClusterClientTest {
     properties.setProperty(ProcessProperties.CLUSTER_LOCALENDPOINT, localEndPoint);
     properties.setProperty(ProcessProperties.CLUSTER_ENABLED, "true");
     return new MapSettings(new PropertyDefinitions()).addProperties(properties);
-  }
-
-  private class ChainingCallbackFactoryTest implements ChainingCallbackFactory {
-    private final Set<String> workerUUIDs = new HashSet<>();
-
-    @Override
-    public ChainingCallback create(CeWorker worker, CeProcessingSchedulerExecutorService executorService, long delayBetweenTasks, TimeUnit timeUnit) {
-      String uuid = UUID.randomUUID().toString();
-      workerUUIDs.add(uuid);
-      return mock(ChainingCallback.class);
-    }
-
-    @Override
-    public Set<String> getChainingCallbackUUIDs() {
-      return unmodifiableSet(workerUUIDs);
-    }
   }
 }

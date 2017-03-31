@@ -24,11 +24,14 @@ import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Delayed;
@@ -50,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,14 +66,14 @@ public class CeProcessingSchedulerImplTest {
   public Timeout timeout = Timeout.seconds(60);
   @Rule
   public CeConfigurationRule ceConfiguration = new CeConfigurationRule();
-
+  // Required to prevent an infinite loop
   private CeWorker ceWorker = mock(CeWorker.class);
-  private ChainingCallbackFactory chainingCallbackFactory = new ChainingCallbackFactoryImpl();
+  private CeWorkerFactory ceWorkerFactory = new TestCeWorkerFactory(ceWorker);
   private StubCeProcessingSchedulerExecutorService processingExecutorService = new StubCeProcessingSchedulerExecutorService();
   private SchedulerCall regularDelayedPoll = new SchedulerCall(ceWorker, 2000L, MILLISECONDS);
   private SchedulerCall notDelayedPoll = new SchedulerCall(ceWorker);
 
-  private CeProcessingSchedulerImpl underTest = new CeProcessingSchedulerImpl(ceConfiguration, processingExecutorService, ceWorker, chainingCallbackFactory);
+  private CeProcessingSchedulerImpl underTest = new CeProcessingSchedulerImpl(ceConfiguration, processingExecutorService, ceWorkerFactory);
 
   @Test
   public void polls_without_delay_when_CeWorkerCallable_returns_true() throws Exception {
@@ -183,21 +187,36 @@ public class CeProcessingSchedulerImplTest {
   }
 
   @Test
-  public void when_workerCount_is_more_than_1_as_many_CeWorkerCallable_are_scheduled() throws InterruptedException {
+  public void when_workerCount_is_more_than_1_as_many_CeWorkerCallable_are_scheduled() throws Exception {
     int workerCount = Math.abs(new Random().nextInt(10)) + 1;
-
     ceConfiguration.setWorkerCount(workerCount);
+
+    CeWorker[] workers = new CeWorker[workerCount];
+    for (int i = 0; i < workerCount; i++) {
+      workers[i] = mock(CeWorker.class);
+      when(workers[i].call())
+        .thenReturn(false)
+        .thenThrow(ERROR_TO_INTERRUPT_CHAINING);
+    }
 
     ListenableScheduledFuture listenableScheduledFuture = mock(ListenableScheduledFuture.class);
     CeProcessingSchedulerExecutorService processingExecutorService = mock(CeProcessingSchedulerExecutorService.class);
-    CeProcessingSchedulerImpl underTest = new CeProcessingSchedulerImpl(ceConfiguration, processingExecutorService, ceWorker, chainingCallbackFactory);
+    when(processingExecutorService.schedule(any(CeWorker.class), any(Long.class),any(TimeUnit.class))).thenReturn(listenableScheduledFuture);
+
+    CeWorkerFactory ceWorkerFactory = spy(new TestCeWorkerFactory(workers));
+    CeProcessingSchedulerImpl underTest = new CeProcessingSchedulerImpl(ceConfiguration, processingExecutorService, ceWorkerFactory);
     when(processingExecutorService.schedule(ceWorker, ceConfiguration.getQueuePollingDelay(), MILLISECONDS))
         .thenReturn(listenableScheduledFuture);
 
     underTest.startScheduling();
+    // No exception from TestCeWorkerFactory must be thrown
 
-    verify(processingExecutorService, times(workerCount)).schedule(ceWorker, ceConfiguration.getQueuePollingDelay(), MILLISECONDS);
+    // Verify that schedule has been called on all workers
+    for (int i = 0; i < workerCount; i++) {
+      verify(processingExecutorService).schedule(workers[i], ceConfiguration.getQueuePollingDelay(), MILLISECONDS);
+    }
     verify(listenableScheduledFuture, times(workerCount)).addListener(any(Runnable.class), eq(processingExecutorService));
+    verify(ceWorkerFactory, times(workerCount)).create();
   }
 
   private void startSchedulingAndRun() throws ExecutionException, InterruptedException {
@@ -205,6 +224,29 @@ public class CeProcessingSchedulerImplTest {
 
     // execute future synchronously
     processingExecutorService.runFutures();
+  }
+
+  private class TestCeWorkerFactory implements CeWorkerFactory {
+    private final List<CeWorker> ceWorkers = new ArrayList<>();
+    private int counter = -1;
+
+    private TestCeWorkerFactory(CeWorker... ceWorkers) {
+      this.ceWorkers.addAll(Arrays.asList(ceWorkers));
+    }
+
+    @Override
+    public synchronized CeWorker create() {
+      counter++;
+      if (counter >= ceWorkers.size()) {
+        throw new IllegalStateException("A new worker has been asked but no more workers are available");
+      }
+      return ceWorkers.get(counter);
+    }
+
+    @Override
+    public Set<String> getWorkerUUIDs() {
+      return new HashSet<>();
+    }
   }
 
   /**
@@ -385,7 +427,7 @@ public class CeProcessingSchedulerImplTest {
         command.run();
       }
 
-      // ///////// unsupported operations ///////////
+      /////////// unsupported operations ///////////
 
       @Override
       public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {

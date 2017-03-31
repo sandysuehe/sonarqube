@@ -21,27 +21,22 @@
 package org.sonar.server.computation.taskprocessor;
 
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A factory that will create the ChainingCallback with an UUID
  */
-public interface ChainingCallbackFactory {
+public interface CeWorkerFactory {
   /**
-   * Create a chaining callback.
+   * Create a CeWorker.
    *
-   * @param worker            the worker
-   * @param executorService   the executor service
-   * @param delayBetweenTasks the delay between tasks
-   * @param timeUnit          the time unit
-   * @return the chaining callback
+   * @return the CeWorker
    */
-  ChainingCallback create(CeWorker worker, CeProcessingSchedulerExecutorService executorService, long delayBetweenTasks, TimeUnit timeUnit);
+  CeWorker create();
 
   /**
    * Retrieve the set of UUIDs of created ChainingCallbacks
    *
    * @return the chaining callback UUIDs
    */
-  Set<String> getChainingCallbackUUIDs();
+  Set<String> getWorkerUUIDs();
 }

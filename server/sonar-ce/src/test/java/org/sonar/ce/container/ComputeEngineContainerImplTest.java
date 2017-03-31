@@ -35,10 +35,10 @@ import org.sonar.api.CoreProperties;
 import org.sonar.api.database.DatabaseProperties;
 import org.sonar.api.utils.DateUtils;
 import org.sonar.api.utils.System2;
-import org.sonar.ce.cluster.ClusterClient;
+import org.sonar.ce.cluster.HazelcastClientWrapper;
 import org.sonar.ce.cluster.HazelcastTestHelper;
-import org.sonar.ce.worker.ClusterWorkerUUIDsProviderImpl;
-import org.sonar.ce.worker.SingleWorkerUUIDsProviderImpl;
+import org.sonar.ce.worker.CeDistributedInformationImpl;
+import org.sonar.ce.worker.StandaloneCeDistributedInformation;
 import org.sonar.db.DbTester;
 import org.sonar.db.property.PropertyDto;
 import org.sonar.process.NetworkUtils;
@@ -93,8 +93,8 @@ public class ComputeEngineContainerImplTest {
       picoContainer.getComponentAdapters().stream()
         .map(ComponentAdapter::getComponentImplementation)
         .collect(Collectors.toList())
-    ).contains((Class) ClusterClient.class,
-      (Class) ClusterWorkerUUIDsProviderImpl.class
+    ).contains((Class) HazelcastClientWrapper.class,
+      (Class) CeDistributedInformationImpl.class
     );
     underTest.stop();
   }
@@ -143,10 +143,10 @@ public class ComputeEngineContainerImplTest {
       picoContainer.getComponentAdapters().stream()
         .map(ComponentAdapter::getComponentImplementation)
         .collect(Collectors.toList())
-    ).doesNotContain((Class) ClusterClient.class,
-      (Class) ClusterWorkerUUIDsProviderImpl.class
+    ).doesNotContain((Class) HazelcastClientWrapper.class,
+      (Class) CeDistributedInformationImpl.class
     ).contains(
-      (Class) SingleWorkerUUIDsProviderImpl.class
+      (Class) StandaloneCeDistributedInformation.class
     );
     assertThat(picoContainer.getParent().getParent().getParent().getParent()).isNull();
     underTest.stop();

@@ -18,7 +18,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-package org.sonar.ce.worker;/*
+package org.sonar.server.computation.taskprocessor;/*
  * SonarQube
  * Copyright (C) 2009-2017 SonarSource SA
  * mailto:info AT sonarsource DOT com
@@ -39,21 +39,9 @@ package org.sonar.ce.worker;/*
  */
 
 import java.util.Set;
-import org.sonar.ce.cluster.ClusterClient;
-import org.sonar.server.computation.taskprocessor.WorkerUUIDsProvider;
 
-/**
- * Provide the set of worker's UUID in a clustered SonarQube instance
- */
-public class ClusterWorkerUUIDsProviderImpl implements WorkerUUIDsProvider {
-  private final ClusterClient clusterClient;
-
-  public ClusterWorkerUUIDsProviderImpl(ClusterClient clusterClient) {
-    this.clusterClient = clusterClient;
-  }
-
-  @Override
-  public Set<String> getWorkerUUIDs() {
-    return clusterClient.getWorkerUUIDs();
-  }
+public interface CeDistributedInformation {
+  Set<String> getWorkerUUIDs();
+  void broadcastWorkerUUIDs();
+  void stop();
 }

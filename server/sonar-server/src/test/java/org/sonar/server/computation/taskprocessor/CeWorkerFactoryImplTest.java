@@ -20,17 +20,18 @@
 
 package org.sonar.server.computation.taskprocessor;
 
-import java.util.concurrent.TimeUnit;
 import org.junit.Test;
+import org.sonar.ce.log.CeLogging;
+import org.sonar.server.computation.queue.InternalCeQueue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-public class ChainingCallbackFactoryImplTest {
+public class CeWorkerFactoryImplTest {
   @Test
   public void chainingcallback_created_by_factory_must_contain_uuid() {
-    ChainingCallbackFactoryImpl underTest = new ChainingCallbackFactoryImpl();
-    ChainingCallback chainingCallback = underTest.create(mock(CeWorker.class), mock(CeProcessingSchedulerExecutorService.class), 1, TimeUnit.HOURS);
-    assertThat(chainingCallback.getUuid()).isNotEmpty();
+    CeWorkerFactoryImpl underTest = new CeWorkerFactoryImpl(mock(InternalCeQueue.class), mock(CeLogging.class), mock(CeTaskProcessorRepository.class));
+    CeWorker ceWorker = underTest.create();
+    assertThat(ceWorker.getUUID()).isNotEmpty();
   }
 }
